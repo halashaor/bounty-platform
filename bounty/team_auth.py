@@ -1,5 +1,6 @@
 """Shared account integration. Business users are profiles, never credential copies."""
 import os
+from pathlib import Path
 from flask import g, request, session, redirect, url_for, render_template, flash
 from team_accounts import TeamAccounts, AccountError, COOKIE_SECONDS
 from .db import connect
@@ -30,6 +31,14 @@ def _profiles(path):
 
 
 def install(app, accounts_path):
+    config_path = app.config.get('TEAM_IDENTITY_CONFIG') or os.environ.get('TEAM_IDENTITY_CONFIG')
+    if not config_path:
+        adjacent = Path(accounts_path).parent/'mission-identity.json'
+        if adjacent.exists():
+            config_path = str(adjacent)
+    if config_path:
+        from .central_auth import install as install_central
+        return install_central(app, accounts_path, config_path)
     accounts = TeamAccounts(accounts_path)
     app.extensions['team_accounts'] = accounts
     app.config['TEAM_AUTH'] = True

@@ -92,6 +92,9 @@ def create_app(config=None):
         if app.extensions.get('team_accounts'):
             with app.extensions['team_accounts'].connection() as accounts:
                 accounts.execute('SELECT 1 FROM accounts LIMIT 1').fetchone()
+                check = getattr(app.extensions['team_accounts'], 'check_fresh', None)
+                if check:
+                    check(accounts)
         return jsonify(status='ok')
 
     @app.after_request
