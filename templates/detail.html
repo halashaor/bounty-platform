@@ -28,7 +28,7 @@
   {% endif %}
 
   <section class="qband" style="--hue:{{ hue }};--on:{{ '#1B1D2A' if hue in ('#F2B700', '#F39800', '#00AEE0') else '#fff' }}">
-    {% if team %}{{ crew_art(task, members|length, 'qband-crew', 'xMaxYMin meet') }}{% else %}
+    {% if team %}{{ crew_art(task, members|length, 'qband-crew', 'xMaxYMax meet', 200) }}{% else %}
     <svg class="pick-art" viewBox="0 0 400 180" preserveAspectRatio="xMaxYMid slice" aria-hidden="true"><path d="M300 180 360 40H400V180Z" fill="#fff"/><path d="M268 180 328 40" stroke="#1B1D2A" stroke-width="8" stroke-linecap="round"/><circle cx="236" cy="58" r="11" fill="#1B1D2A"/></svg>{% endif %}
     <div>
       {% if team %}<span class="sticker team-sticker" style="--sticker:#1B1D2A"><i></i>大任务 · 好几个人一起做</span>{% endif %}

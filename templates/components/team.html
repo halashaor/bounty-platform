@@ -24,31 +24,9 @@
 {%- else -%}{{ n }} 人在做 · 还能加入{%- endif -%}
 {%- endmacro %}
 
-{# 大任务的色卡装饰（400×180，和推荐卡同一套画法，只用白和墨）：
-   一个人一个点，第一个是墨点；在做时点用线串起来，空位是虚线圈（人数不限时留一个）；
-   交上去后点并成一条线；做完这条线连着右边的面一起涂满，没做完时面是半透明的。最多画 7 个位置。 #}
-{% macro crew_art(task, n, cls='', fit='xMaxYMid slice') -%}
-{%- set settled = task.status in ('review', 'done') -%}
-{%- set spots = [n, 1]|max if settled else [task.team_size or (n + 1), n, 1]|max -%}
-{%- set spots = [spots, 7]|min -%}{%- set shown = [n, spots]|min -%}
-{%- set gap = 40 if spots <= 5 else 34 if spots == 6 else 30 -%}{%- set y = 70 -%}{%- set x0 = 340 - (spots - 1) * gap -%}
-<svg class="pick-art crew-art{{ ' ' ~ cls if cls }}" viewBox="0 0 400 180" preserveAspectRatio="{{ fit }}" aria-hidden="true">
-<path class="fl" style="--fx:8px;--fy:4px" d="M258 77A142 103 0 0 0 400 180V77Z" fill="#fff"{% if task.status != 'done' %} opacity=".22"{% endif %}/>
-{%- if task.status == 'done' -%}
-<rect class="fl" style="--fx:-6px" x="{{ x0 }}" y="{{ y - 7 }}" width="{{ 400 - x0 }}" height="14" fill="#fff"/>
-{%- else -%}
-<g class="fl" style="--fx:-10px">
-{%- if task.status == 'review' -%}
-<rect x="{{ x0 }}" y="{{ y - 7 }}" width="{{ (shown - 1) * gap + 12 }}" height="14" rx="7" fill="#fff"/>
-{%- else -%}
-{%- if shown > 1 %}<path d="M{{ x0 }} {{ y }}H{{ x0 + (shown - 1) * gap }}" stroke="#fff" stroke-width="6" stroke-linecap="round"/>{% endif -%}
-{%- for i in range(1, shown) %}<circle cx="{{ x0 + i * gap }}" cy="{{ y }}" r="10" fill="#fff"/>{% endfor -%}
-{%- for i in range(shown, spots) %}<circle cx="{{ x0 + i * gap }}" cy="{{ y }}" r="9.5" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="4 3.4"/>{% endfor -%}
-{%- endif -%}
-</g>
-{%- endif -%}
-{%- if n %}<circle class="fl" style="--fx:-14px" cx="{{ x0 }}" cy="{{ y }}" r="15" fill="#1B1D2A"/>{% endif -%}
-</svg>
+{# 大任务的色卡装饰：一把扇子，一个座位一片扇骨（画法见 teams.fan_art） #}
+{% macro crew_art(task, n, cls='', fit='xMaxYMid slice', cx=316) -%}
+{{ fan_art(task.status, n, task.team_size or none, cls, fit, cx) }}
 {%- endmacro %}
 
 {# 大任务卡：首页那一排和大任务列表用，样子和推荐卡一样 #}

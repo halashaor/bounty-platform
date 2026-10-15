@@ -3,6 +3,8 @@
 
 做的过程中随时可以拆出「分工」：分工就是普通小任务（tasks.parent_id 指向大任务），一个人认领、拿自己的勋章；
 接下分工也就加入了大任务。分工不用一开始就拆好，想到再拆，不拆也行。"""
+from math import cos, radians, sin
+from markupsafe import Markup
 from .db import connect
 from .honors import MEDALS
 from .service import InvalidAction, insert_task, now, parse_deadline
@@ -106,3 +108,41 @@ def together(db, user_id):
             WHERE h.task_id IN ({','.join('?' * len(rows))}) ORDER BY u.id''', [row['task_id'] for row in rows]) if rows else ():
         crew.setdefault(row['task_id'], []).append(dict(id=row['id'], name=row['name']))
     return [dict(row, crew=crew.get(row['task_id'], [])) for row in rows]
+
+
+def fan_art(status, members, team_size=None, cls='', fit='xMaxYMid slice', cx=316):
+    """The big-task drawing for a medal-coloured field (400×180, white and ink only): a folding fan with one blade
+    per seat, at most 8. Blades of people who joined are white (the first one ink and a little longer), open seats
+    are faint (one spare blade when the size is open). Handed in, the blades close into one white face with thin
+    ribs; done, the face is solid with an arc around it. Blades carry --fr so a hover can spread the fan.
+    cx=316 lets the card edge crop the right side; cx=200 keeps the whole fan inside."""
+    settled = status in ('review', 'done')
+    seats = max(members, 1) if settled else max(team_size or members + 1, members, 1)
+    seats = min(seats, 8)
+    cy, radius, hub = 190, 134, 30
+    point = lambda r, a: f'{cx + r * cos(radians(a)):.1f} {cy + r * sin(radians(a)):.1f}'
+
+    def blade(a0, a1, outer, fill, extra=''):
+        return (f'<path d="M{point(hub, a0)}L{point(outer, a0)}A{outer} {outer} 0 0 1 {point(outer, a1)}'
+                f'L{point(hub, a1)}A{hub} {hub} 0 0 0 {point(hub, a0)}Z" fill="{fill}"{extra}/>')
+    parts = []
+    if status == 'done':
+        parts.append(f'<path class="fl" style="--fy:-5px" d="M{cx - radius - 22} {cy}A{radius + 22} {radius + 22} 0 0 1 {cx + radius + 22} {cy}" '
+                     'fill="none" stroke="#fff" stroke-width="3"/>')
+        parts.append(blade(180, 360, radius, '#fff'))
+    elif status == 'review':
+        parts.append(blade(180, 360, radius, '#fff'))
+        parts += [f'<path d="M{point(hub, a)}L{point(radius, a)}" stroke="var(--hue)" stroke-width="2"/>'
+                  for a in (180 + i * 180 / seats for i in range(1, seats))]
+    else:
+        gap = 3.2
+        for i in range(seats):
+            a0, a1 = 180 + i * 180 / seats + gap / 2, 180 + (i + 1) * 180 / seats - gap / 2
+            turn = f' class="blade" style="--fr:{(i - (seats - 1) / 2) * 1.6:.1f}deg;transform-origin:{cx}px {cy}px"'
+            if i == 0 and members:
+                parts.append(blade(a0, a1, radius + 8, '#1B1D2A', turn))
+            else:
+                parts.append(blade(a0, a1, radius, '#fff', turn + ('' if i < members else ' opacity=".22"')))
+    parts.append(f'<circle cx="{cx}" cy="{cy}" r="{hub - 9}" fill="#1B1D2A"/>')
+    return Markup(f'<svg class="pick-art crew-art{" " + cls if cls else ""}" viewBox="0 0 400 180" preserveAspectRatio="{fit}" '
+                  f'aria-hidden="true">{"".join(parts)}</svg>')
