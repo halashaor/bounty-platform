@@ -1,0 +1,74 @@
+{% from 'components/icon.html' import icon %}
+{% from 'components/medal.html' import medal %}
+{% from 'components/ui.html' import ava %}
+
+{# 座位：一起做的人一人一个头像；想要几个人就留几个虚线空位，人数不限时留一个「+」 #}
+{% macro seats(members, size=none, room=true, limit=8) -%}
+{%- set empty = ((size - members|length) if size else 1) if room else 0 -%}
+{%- set empty = [[empty, 0]|max, [limit - members|length, 1]|max]|min -%}
+<span class="seats" aria-label="{{ members|length }} 人在做{{ '，想要 ' ~ size ~ ' 人' if size }}">
+  {%- for person in members[:limit] %}{{ ava(person.name, person.id) }}{% endfor -%}
+  {%- if members|length > limit %}<i class="seat more num">+{{ members|length - limit }}</i>{% endif -%}
+  {%- for _ in range(empty) %}<i class="seat">{{ '' if size else '+' }}</i>{% endfor -%}
+</span>
+{%- endmacro %}
+
+{# 一句话说清人手：招人中 / 还缺几个人 / 交上去了 / 一起完成 #}
+{% macro crew_text(task, members) -%}
+{%- set n = members|length -%}
+{%- if task.status == 'done' -%}{{ n }} 人一起完成
+{%- elif task.status == 'review' -%}交上去了，等验收
+{%- elif not n -%}{{ '想要 ' ~ task.team_size ~ ' 人 · ' if task.team_size }}等第一个人加入
+{%- elif task.team_size and task.team_size > n -%}{{ n }} 人在做 · 还缺 {{ task.team_size - n }} 人
+{%- elif task.team_size -%}{{ n }} 人在做 · 人齐了
+{%- else -%}{{ n }} 人在做 · 还能加入{%- endif -%}
+{%- endmacro %}
+
+{# 一块拼图：40×40，图形和勋章一样按分量画（点 / 线 / 面），颜色取这份分工的勋章色 #}
+{% macro tile_shape(importance) -%}
+<rect class="bg" x="1" y="1" width="38" height="38" rx="7"/>
+{%- if importance == 'light' -%}<circle class="k" cx="20" cy="20" r="8"/>
+{%- elif importance == 'standard' -%}<circle class="k" cx="10.5" cy="20" r="4"/><circle class="w" cx="18" cy="20" r="2.4"/><rect class="w" x="22" y="17" width="11" height="6" rx="3"/>
+{%- else -%}<rect class="k" x="8" y="9" width="4" height="22" rx="2"/><path class="w" d="M20 6A14 14 0 0 1 20 34Z"/>{%- endif -%}
+{%- endmacro %}
+
+{# 大任务拆出来的分工拼成一张图：做完的上色，有人在做的描边，没人接的是虚线。最后一行不满时居中。 #}
+{% macro mosaic(tiles, cls='', label=none) -%}
+{%- set n = tiles|length -%}{%- set cols, rows = big_grid(n) -%}
+{%- set last = n - (rows - 1) * cols -%}
+<svg class="mosaic{{ ' ' ~ cls if cls }}" viewBox="0 0 {{ cols * 44 - 4 }} {{ rows * 44 - 4 }}" {% if label %}role="img" aria-label="{{ label }}"{% else %}aria-hidden="true"{% endif %}>
+{%- for t in tiles -%}
+{%- set row = loop.index0 // cols -%}
+{%- set x = (loop.index0 % cols) * 44 + ((cols - last) * 22 if row == rows - 1 else 0) -%}
+<g transform="translate({{ x }} {{ row * 44 }})"><g class="mt {{ t.state }}{{ ' mine' if t.mine }}" style="--c:{{ medals[t.key].hue }};--i:{{ loop.index0 }}">{{ tile_shape(t.importance) }}{% if t.mine %}<circle class="mt-me" cx="33" cy="7" r="3.2"/>{% endif %}</g></g>
+{%- endfor -%}
+</svg>
+{%- endmacro %}
+
+{# 单独一块，分工列表里当图标用 #}
+{% macro tile(task, mine=false) -%}
+{%- set state = 'done' if task.status == 'done' else 'open' if task.status == 'open' else 'busy' -%}
+<svg class="mosaic one" viewBox="0 0 40 40" aria-hidden="true"><g class="mt {{ state }}{{ ' mine' if mine }}" style="--c:{{ medals[medal_key(task)].hue }}">{{ tile_shape(task.importance) }}</g></svg>
+{%- endmacro %}
+
+{# 大任务卡：首页那一排和大任务列表用。上半截是勋章和座位，有分工时再加一排拼图 #}
+{% macro big_card(item, i=0) -%}
+{%- set key = medal_key(item) -%}{%- set left = due_label(item.deadline) -%}
+<article class="bigcard{{ ' joined' if item.joined }}{{ ' done' if item.status == 'done' }}" style="--i:{{ i }};--hue:{{ medals[key].hue }}">
+  <a class="cover" href="{{ url_for('detail', task_id=item.id) }}" aria-label="大任务：{{ item.title }}"></a>
+  <div class="bigcard-art">
+    {{ medal(key, 'bigcard-medal') }}
+    <div class="bigcard-crew">{{ seats(item.members, item.team_size, item.open_seat, 6) }}<small>{{ crew_text(item, item.members) }}</small></div>
+    {% if item.tiles %}<div class="bigcard-pieces">{{ mosaic(item.tiles) }}<small class="num">分工 {{ item.pieces_done }}/{{ item.tiles|length }}</small></div>{% endif %}
+  </div>
+  <div class="bigcard-body">
+    <span class="kicker">{% if item.project %}{{ item.project }}<span>·</span>{% endif %}{{ item.owner_name }} 发布<span>·</span>{% if item.status == 'done' %}{{ item.done_at|md }} 完成{% else %}<span class="{{ 'soon' if left[1] }}">{{ left[0] }}</span>{% endif %}</span>
+    <h3>{{ item.title }}</h3>
+    <p class="goal">{{ item.description }}</p>
+    <div class="bigcard-foot">
+      <span class="eff">{{ effort_labels[item.importance] }}{{ ' · 加急' if item.urgency == 'urgent' }}</span><span class="xp">每人 +{{ offer_xp(item) }}</span>
+      {% if item.joined %}<em class="big-flag yours">你在里面</em>{% elif item.mine %}<em class="big-flag yours">你发布的</em>{% elif item.open_seat %}<em class="big-flag go">能加入</em>{% endif %}
+    </div>
+  </div>
+</article>
+{%- endmacro %}

@@ -62,12 +62,13 @@
       </a>
       <div class="game-text">
         <h2>一笔画</h2>
-        <p>一笔走完所有的线，不能走重复的路。图论里叫欧拉路径，卡住了就想想每个点连着几条线。</p>
-        <div class="game-stat"><span>画完 <b class="num">{{ lines.solved|length }}</b> / {{ lines.total }} 关</span><span>画完一关开下一关</span></div>
+        <p>一笔走完所有的线，不能走重复的路。图论里叫欧拉路径，卡住了就想想每个点连着几条线。每天零点出一套新的 {{ today_set.total }} 关，一关比一关难。</p>
+        <div class="game-stat"><span>今天 <b class="num">{{ today_set.solved|length }}</b> / {{ today_set.total }} 关</span><span>入门 <b class="num">{{ lines.solved|length }}</b> / {{ lines.total }} 关</span></div>
       </div>
       <div class="game-modes">
-        <a class="mode" href="{{ url_for('play_lines') }}">{{ icon('play') }}<span><b>{{ '接着画' if lines.solved else '从第 1 关开始' }}</b><small>{% if unsolved %}第 {{ unsolved[0] }} 关「{{ levels[unsolved[0] - 1][0] }}」{% else %}全都画完了，随时重玩{% endif %}</small></span></a>
-        <a class="mode{{ ' done' if daily_done }}" href="{{ url_for('play_daily') }}">{{ icon('sun') }}<span><b>每日一笔</b><small>{% if daily_done %}今天画过了 · {% endif %}全队同一题，今天 {{ daily_count }} 人画出来了</small></span></a>
+        {% set all_today = today_set.solved|length == today_set.total %}
+        <a class="mode{{ ' done' if all_today }}" href="{{ url_for('play_daily') }}">{{ icon('sun') }}<span><b>今天的 {{ today_set.total }} 关</b><small>{% if all_today %}今天的全画完了，明天零点换新的{% elif today_set.solved %}接着画第 {{ today_set.next }} 关{% else %}全队同一套{% endif %} · {{ daily_count }} 人全画完了</small></span></a>
+        <a class="mode" href="{{ url_for('play_lines') }}">{{ icon('play') }}<span><b>入门 {{ lines.total }} 关</b><small>{% if unsolved %}第 {{ unsolved[0] }} 关「{{ levels[unsolved[0] - 1][0] }}」{% else %}全都画完了，随时重玩{% endif %}</small></span></a>
         {% set random_item = board|selectattr('id', 'equalto', 'random')|first %}
         {% if random_item.open %}<a class="mode" href="{{ url_for('play_random') }}">{{ icon('dice') }}<span><b>随机一笔</b><small>无限出题</small></span></a>
         {% else %}<span class="mode locked">{{ icon('lock') }}<span><b>随机一笔</b><small>{{ random_item.need }}后开放</small></span></span>{% endif %}

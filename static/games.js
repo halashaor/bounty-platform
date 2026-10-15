@@ -172,14 +172,20 @@
     }
     function showSolved(result) {
       solvedBox.hidden = false;
-      document.querySelector('.lvl.now')?.classList.add('solved');
-      const count = document.querySelector('.level-side .sec span');
-      if (count) count.textContent = `画完 ${result.solved} / ${result.total}`;
+      const current = document.querySelector('.lvl.now');
+      current?.classList.add('solved');
+      // 下一关的锁当场打开，不用刷新
+      const locked = current?.closest('li')?.nextElementSibling?.querySelector('.lvl.locked');
+      if (locked && result.next) locked.outerHTML = `<a class="lvl" href="${result.next}">${Number(current.textContent) + 1}</a>`;
+      const count = document.querySelector(`[data-count="${level.kind}"]`);
+      if (count) count.textContent = level.kind === 'daily' ? `${result.label} ${result.solved} / ${result.total}` : `画完 ${result.solved} / ${result.total}`;
       const actions = solvedBox.querySelector('[data-solved-actions]');
       const text = solvedBox.querySelector('[data-solved-text]');
       if (level.kind === 'daily') {
         document.querySelector('[data-daily-count]')?.replaceChildren(String(result.daily));
-        text.textContent = result.first ? `今天你是第 ${result.daily} 个画出来的。明天换新题。` : `又画了一遍。今天全队 ${result.daily} 人画出来了。`;
+        text.textContent = result.solved === result.total
+          ? `${result.label}的 ${result.total} 关全画完了！一共 ${result.daily} 人全画完。明天零点换新的一套。`
+          : `一笔走完 ${edges.length} 条线。${result.label}画完 ${result.solved} / ${result.total} 关，下一关更难一点。`;
       } else if (level.kind === 'random') {
         text.textContent = `一笔走完 ${edges.length} 条线。`;
       } else {

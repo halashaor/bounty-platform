@@ -233,19 +233,21 @@ class WorkflowTest(unittest.TestCase):
     def test_demo_database_is_independent_and_idempotent_safe(self):
         from bounty.demo import seed_demo
         path = str(Path(self.temp.name) / 'demo.sqlite3')
-        self.assertEqual(seed_demo(path), 34)
+        self.assertEqual(seed_demo(path), 33)
         with self.assertRaises(ValueError):
             seed_demo(path)
         with connect(path) as db:
             counts = dict(db.execute('SELECT status,COUNT(*) FROM tasks GROUP BY status').fetchall())
-            self.assertEqual(counts, {'open': 17, 'active': 4, 'review': 3, 'done': 10})
-            self.assertEqual(db.execute('SELECT COUNT(*) FROM honors').fetchone()[0], 10)
+            self.assertEqual(counts, {'open': 15, 'active': 6, 'review': 3, 'done': 9})
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM honors').fetchone()[0], 12)
             # 演示里有一部分勋章已经拆开过，其余留在信箱里等颁奖
-            self.assertEqual(db.execute('SELECT COUNT(*) FROM honors WHERE seen_at IS NULL').fetchone()[0], 4)
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM honors WHERE seen_at IS NULL').fetchone()[0], 5)
             self.assertEqual(db.execute('SELECT COUNT(DISTINCT project) FROM tasks').fetchone()[0], 5)
-            # 三个大任务：两个在做，一个已经收尾，「认领人」的合力纪念还在信箱里
-            self.assertEqual(dict(db.execute('SELECT status,COUNT(*) FROM big_tasks GROUP BY status').fetchall()), {'active': 2, 'done': 1})
-            self.assertEqual(db.execute('SELECT COUNT(*) FROM big_credits WHERE seen_at IS NULL').fetchone()[0], 1)
+            # 四个大任务：两个在做、一个等验收、一个和「认领人」一起做完了（那枚勋章还在信箱里）
+            self.assertEqual(dict(db.execute("SELECT status,COUNT(*) FROM tasks WHERE kind='team' GROUP BY status").fetchall()),
+                             {'active': 2, 'review': 1, 'done': 1})
+            self.assertEqual(db.execute('''SELECT COUNT(*) FROM honors h JOIN tasks t ON t.id=h.task_id
+                WHERE t.kind='team' AND h.seen_at IS NULL''').fetchone()[0], 1)
             self.assertFalse(db.execute('PRAGMA foreign_key_check').fetchall())
         app = create_app({'TESTING': True, 'DATABASE': path, 'SECRET_KEY': 'test'})
         client = app.test_client()
@@ -585,12 +587,26 @@ class WorkflowTest(unittest.TestCase):
             solved = self.post_json(worker, '/play/lines/3', {'stroke': self.euler(games.LEVELS[2])})
         self.assertEqual((solved['first'], solved['next']), (False, '/play/lines?level=4'))
         self.assertTrue(self.post_json(worker, '/play/lines/4', {'stroke': self.euler(games.LEVELS[3])})['first'])
-        # 每日一笔：全队同一题
-        daily = games.daily_board(games.today())
-        first = self.post_json(worker, '/play/lines/daily', {'stroke': self.euler(daily)})
-        self.assertEqual((first['first'], first['daily']), (True, 1))
-        self.assertFalse(self.post_json(worker, '/play/lines/daily', {'stroke': self.euler(daily)})['first'])
-        self.assertEqual(self.post_json(self.clients[2], '/play/lines/daily', {'stroke': self.euler(daily)})['daily'], 2)
+        # 每天的关卡：程序按日期出题，全队同一套，一关比一关难；画完一关开下一关，最近几天的能补
+        day = games.today()
+        for back in games.recent_days()[:3]:
+            boards = [games.daily_board(back, n) for n in range(1, len(games.DAILY_STEPS) + 1)]
+            self.assertEqual([games.crossroads(board) for board in boards], [1, 2, 3, 4, 5, 7])
+            self.assertTrue(all(games.check_stroke(board, stroke(board)) for board in boards))
+        self.assertEqual(games.daily_board(day, 3), games.daily_board(day, 3))
+        self.assertNotEqual(games.daily_board(day, 3)[2], games.daily_board(games.recent_days()[1], 3)[2])
+        url = lambda n, when=day: f'/play/lines/daily/{when}/{n}'
+        self.assertIn('先画完这天的第 1 关', self.post_json(worker, url(2), {'stroke': self.euler(games.daily_board(day, 2))}, status=400)['error'])
+        self.assertIn('最近', self.post_json(worker, url(1, '2020-01-01'), {'stroke': '0,1'}, status=400)['error'])
+        for n in range(1, len(games.DAILY_STEPS) + 1):
+            result = self.post_json(worker, url(n), {'stroke': self.euler(games.daily_board(day, n))})
+            self.assertTrue(result['first'])
+        self.assertEqual((result['solved'], result['daily'], result['next']), (6, 1, None))
+        self.assertFalse(self.post_json(worker, url(1), {'stroke': self.euler(games.daily_board(day, 1))})['first'])
+        yesterday = games.recent_days()[1]
+        self.assertEqual(self.post_json(self.clients[2], url(1, yesterday), {'stroke': self.euler(games.daily_board(yesterday, 1))})['next'],
+                         url(2, yesterday))
+        self.assertIn('今天的 6 关', worker.get('/play').text)
         # 随机一笔要一共 3 枚勋章
         self.assertEqual(worker.get('/play/lines/random/7').status_code, 302)
         for key in ('light-normal', 'light-normal', 'standard-normal'):

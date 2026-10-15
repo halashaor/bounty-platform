@@ -1,9 +1,9 @@
 -- SQLite schema; see bounty/db.py for migrations.
 -- Columns that bounty/db.py adds to older databases on startup:
---   tasks.project TEXT, tasks.cold INTEGER NOT NULL DEFAULT 0, tasks.big_id INTEGER REFERENCES big_tasks(id)
---   (plus the index tasks_by_big ON tasks(big_id))
+--   tasks.project TEXT, tasks.cold INTEGER NOT NULL DEFAULT 0, tasks.kind TEXT NOT NULL DEFAULT 'solo',
+--   tasks.team_size INTEGER, tasks.parent_id INTEGER REFERENCES tasks(id) (plus the index tasks_by_parent ON tasks(parent_id))
 --   honors.bonus INTEGER NOT NULL DEFAULT 0
---   users.title_key TEXT, users.notes_seen_at TEXT, users.play_seen TEXT NOT NULL DEFAULT '', users.is_admin INTEGER NOT NULL DEFAULT 0
+--   users.title_key TEXT, users.notes_seen_at TEXT, users.play_seen TEXT NOT NULL DEFAULT ''
 --   game_runs.mode TEXT NOT NULL DEFAULT 'normal'
 
 CREATE TABLE IF NOT EXISTS users (
@@ -26,10 +26,11 @@ CREATE TABLE IF NOT EXISTS events (
  body TEXT NOT NULL, created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS honors (
- task_id INTEGER PRIMARY KEY REFERENCES tasks(id),
+ task_id INTEGER NOT NULL REFERENCES tasks(id),
  user_id INTEGER NOT NULL REFERENCES users(id),
  medal_key TEXT NOT NULL,
- awarded_at TEXT NOT NULL, seen_at TEXT
+ awarded_at TEXT NOT NULL, seen_at TEXT,
+ PRIMARY KEY(task_id,user_id)
 );
 CREATE INDEX IF NOT EXISTS honors_by_user ON honors(user_id);
 CREATE TABLE IF NOT EXISTS featured_honors (
@@ -83,6 +84,13 @@ CREATE TABLE IF NOT EXISTS daily_solved (
  solved_at TEXT NOT NULL,
  PRIMARY KEY(user_id,day)
 );
+CREATE TABLE IF NOT EXISTS daily_lines (
+ user_id INTEGER NOT NULL REFERENCES users(id),
+ day TEXT NOT NULL,
+ level INTEGER NOT NULL,
+ solved_at TEXT NOT NULL,
+ PRIMARY KEY(user_id,day,level)
+);
 CREATE TABLE IF NOT EXISTS builds (
  id INTEGER PRIMARY KEY,
  user_id INTEGER NOT NULL REFERENCES users(id),
@@ -101,43 +109,13 @@ CREATE TABLE IF NOT EXISTS org_tags (
  created_by INTEGER REFERENCES users(id),
  created_at TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS big_tasks (
- id INTEGER PRIMARY KEY,
- title TEXT NOT NULL,
- goal TEXT NOT NULL,
- project TEXT,
- owner_id INTEGER NOT NULL REFERENCES users(id),
- deadline TEXT NOT NULL,
- status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','done')),
- closing TEXT,
- created_at TEXT NOT NULL,
- done_at TEXT
-);
-CREATE TABLE IF NOT EXISTS big_members (
- big_id INTEGER NOT NULL REFERENCES big_tasks(id),
+CREATE TABLE IF NOT EXISTS task_members (
+ task_id INTEGER NOT NULL REFERENCES tasks(id),
  user_id INTEGER NOT NULL REFERENCES users(id),
  joined_at TEXT NOT NULL,
- PRIMARY KEY(big_id,user_id)
+ PRIMARY KEY(task_id,user_id)
 );
-CREATE TABLE IF NOT EXISTS big_events (
- id INTEGER PRIMARY KEY,
- big_id INTEGER NOT NULL REFERENCES big_tasks(id),
- user_id INTEGER NOT NULL REFERENCES users(id),
- kind TEXT NOT NULL,
- body TEXT NOT NULL,
- created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS big_credits (
- big_id INTEGER NOT NULL REFERENCES big_tasks(id),
- user_id INTEGER NOT NULL REFERENCES users(id),
- lead INTEGER NOT NULL DEFAULT 0,
- pieces INTEGER NOT NULL DEFAULT 0,
- bonus INTEGER NOT NULL DEFAULT 0,
- awarded_at TEXT NOT NULL,
- seen_at TEXT,
- PRIMARY KEY(big_id,user_id)
-);
-CREATE INDEX IF NOT EXISTS big_credits_by_user ON big_credits(user_id);
+CREATE INDEX IF NOT EXISTS task_members_by_user ON task_members(user_id);
 CREATE TABLE IF NOT EXISTS lines_solved (
  user_id INTEGER NOT NULL REFERENCES users(id),
  level INTEGER NOT NULL,

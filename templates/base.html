@@ -37,7 +37,7 @@
       <a class="logo" href="{{ url_for('index') }}">{{ logo() }}{{ wordmark() }}</a>
       <nav class="nav" aria-label="主导航">
         <a href="{{ url_for('index') }}" {% if here == 'index' %}aria-current="page"{% endif %}>发现</a>
-        <a href="{{ url_for('big_list') }}" {% if here and here.startswith('big') or here == 'new_big' %}aria-current="page"{% endif %}>大任务</a>
+        <a href="{{ url_for('big_list') }}" {% if here == 'big_list' %}aria-current="page"{% endif %}>大任务</a>
         <a href="{{ url_for('mine') }}" {% if here == 'mine' %}aria-current="page"{% endif %}>我的任务{% if my_turn %}<b aria-label="{{ my_turn }} 件轮到你">{{ my_turn }}</b>{% endif %}</a>
         <a href="{{ url_for('honors') }}" {% if here in ('honors', 'recap_page') %}aria-current="page"{% endif %}>成就</a>
         <a href="{{ url_for('play') }}" {% if here and here.startswith('play') %}aria-current="page"{% endif %}>縁側{% if play_new %}<i class="new-dot" aria-label="有 {{ play_new }} 样新解锁">新</i>{% endif %}</a>

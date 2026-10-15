@@ -107,8 +107,14 @@ def standing(db, user_id):
     counts = {row['medal_key']: row['n'] for row in db.execute(
         'SELECT medal_key,COUNT(*) n FROM honors WHERE user_id=? GROUP BY medal_key', (user_id,))}
     titles = db.execute('SELECT COUNT(*) FROM titles_seen WHERE user_id=?', (user_id,)).fetchone()[0]
-    bigs = db.execute('SELECT COUNT(*) FROM big_credits WHERE user_id=?', (user_id,)).fetchone()[0]
+    bigs = team_count(db, user_id)
     return counts, titles, bigs
+
+
+def team_count(db, user_id):
+    """Team tasks this person got a medal for."""
+    return db.execute('''SELECT COUNT(*) FROM honors h JOIN tasks t ON t.id=h.task_id
+        WHERE h.user_id=? AND t.kind='team' ''', (user_id,)).fetchone()[0]
 
 
 def unlocked(db, user_id):

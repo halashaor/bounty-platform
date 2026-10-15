@@ -288,9 +288,8 @@
       data = await response.json();
     } catch { return; }
     const awards = data.awards || [];
-    const together = data.bigs || [];
     const fresh = data.titles || [];
-    if (!awards.length && !together.length && !fresh.length) return;
+    if (!awards.length && !fresh.length) return;
     // 柜子（case.js）要先听到"开始颁奖"，等页面上的脚本都跑完再开始
     if (document.readyState === 'loading') await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, {once: true}));
     const template = document.querySelector('template[data-medal-template]');
@@ -298,11 +297,9 @@
     const items = dialog.querySelector('[data-award-items]');
     const label = dialog.querySelector('[data-award-label]');
     const featureButton = dialog.querySelector('[data-award-feature]');
-    // 先一枚枚发勋章，再拼大任务的图，最后一个个盖称号
-    const queue = [...awards.map(award => ({type: 'medal', ...award})), ...together.map(big => ({type: 'big', ...big})),
-                   ...fresh.map(title => ({type: 'title', ...title}))];
-    // 涨经验的是勋章和大任务，它们排在队伍前面
-    const gains = queue.filter(item => item.type !== 'title');
+    // 先一枚枚发勋章，再一个个盖称号
+    const queue = [...awards.map(award => ({type: 'medal', ...award})), ...fresh.map(title => ({type: 'title', ...title}))];
+    const gains = awards;
     const xpTotal = gains.reduce((sum, item) => sum + item.xp, 0);
     const unlocks = data.unlocks || [];
     const leveled = gains.length && data.after.level > data.before.level;
@@ -312,16 +309,14 @@
     const later = (fn, ms) => { if (skipped) { fn(); return; } timers.push(setTimeout(fn, ms * SLOW)); };
 
     // 列表写全：读屏和"看一眼都拿到了什么"都能直接读到
-    items.innerHTML = `<ol class="sr-only">${queue.map(item => `<li>${item.type === 'title' ? `称号：${escapeHtml(item.name)}` : item.type === 'big' ? `大任务完成：${escapeHtml(item.title)}` : `${item.name}：${escapeHtml(item.title)}`}</li>`).join('')}</ol><div class="award-show"></div>`;
+    items.innerHTML = `<ol class="sr-only">${queue.map(item => `<li>${item.type === 'title' ? `称号：${escapeHtml(item.name)}` : `${item.name}：${escapeHtml(item.title)}`}</li>`).join('')}</ol><div class="award-show"></div>`;
     const show = items.querySelector('.award-show');
     const counter = () => queue.length > 1 ? `<span class="award-count">${index + 1} / ${queue.length}</span>` : '';
 
     function summary(final) {
-      if (!final || queue.length < 2) return {title: '解锁称号', big: '合力'}[queue[index].type] || '验收通过';
+      if (!final || queue.length < 2) return queue[index].type === 'title' ? '解锁称号' : '验收通过';
       const parts = [];
-      if (awards.length) parts.push(`${awards.length} 枚勋章`);
-      if (together.length) parts.push(`${together.length} 个大任务`);
-      if (gains.length) parts.push(`+${xpTotal} 经验`);
+      if (awards.length) parts.push(`${awards.length} 枚勋章 · +${xpTotal} 经验`);
       if (fresh.length) parts.push(`${fresh.length} 个称号`);
       return `一共 ${parts.join(' · ')}`;
     }
@@ -334,62 +329,13 @@
         ${tier ? `<span class="award-tier${award.tier === 'all' ? ' gold' : ''}">${tier}</span>` : ''}
         <h2 class="award-name" id="award-title">${award.name}</h2>
         <p class="award-kind">「${escapeHtml(award.title)}」 · ${escapeHtml(award.owner)} 验收${award.bonus ? ` · <b>冷门 +${award.bonus}</b>` : ''}</p>
+        ${award.team?.length ? `<p class="award-team"><span class="big-dot"></span>大任务 · 和 ${award.team.slice(0, 4).map(escapeHtml).join('、')}${award.team.length > 4 ? ` 等 ${award.team.length} 人` : ''} 一起完成</p>` : ''}
         ${praise ? `<p class="award-praise">${escapeHtml(praise)}<cite>— ${escapeHtml(award.owner)}</cite></p>` : ''}
         <div class="award-meter" data-meter><span class="lv num" data-lv>Lv.${data.before.level}</span><span class="bar" style="--fill:var(--yellow)"><i style="width:${data.before.percent}%"></i></span><em><span data-xp>+0</span> 经验</em></div>
         ${award.opens?.length ? `<p class="award-opens"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="7" width="18" height="11" rx="5.5"/><path d="M8 10.5v4M6 12.5h4"/></svg><span>縁側解锁：${award.opens.map(escapeHtml).join('、')}</span></p>` : ''}
         ${counter()}`;
       label.textContent = summary(final);
       featureButton.textContent = '放上名牌';
-    }
-
-    const meterHtml = () => `<div class="award-meter" data-meter><span class="lv num" data-lv>Lv.${data.before.level}</span><span class="bar" style="--fill:var(--yellow)"><i style="width:${data.before.percent}%"></i></span><em><span data-xp>+0</span> 经验</em></div>`;
-    const opensHtml = item => item.opens?.length ? `<p class="award-opens"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="7" width="18" height="11" rx="5.5"/><path d="M8 10.5v4M6 12.5h4"/></svg><span>縁側解锁：${item.opens.map(escapeHtml).join('、')}</span></p>` : '';
-
-    // 大任务：拼图一块块落下来，自己做的那几块带白点
-    function renderBig(big, final) {
-      const part = big.lead ? (big.pieces ? `你牵头，还做完了 ${big.pieces} 份` : '你牵头') : `你做完了 ${big.pieces} 份`;
-      show.innerHTML = `
-        <div class="award-big">${big.mosaic}</div>
-        <span class="award-tier">大任务完成</span>
-        <h2 class="award-name" id="award-title">${escapeHtml(big.title)}</h2>
-        <p class="award-kind">${part} · ${big.people} 个人一起 · ${escapeHtml(big.owner)} 收尾</p>
-        ${big.closing ? `<p class="award-praise">${escapeHtml(big.closing)}<cite>— ${escapeHtml(big.owner)}</cite></p>` : ''}
-        ${meterHtml()}
-        ${opensHtml(big)}
-        ${counter()}`;
-      label.textContent = summary(final);
-      featureButton.textContent = '去看看';
-    }
-
-    function bigSequence(big) {
-      renderBig(big, index === queue.length - 1);
-      const tiles = [...show.querySelectorAll('.award-big .mt')];
-      const rest = ['.award-tier', '.award-name', '.award-kind', '.award-praise', '[data-meter]', '.award-opens'].map(q => show.querySelector(q)).filter(Boolean);
-      const meter = show.querySelector('[data-meter]');
-      if (skipped) {
-        finishMeter(meter, big, true);
-        return;
-      }
-      rest.forEach(el => { el.style.opacity = 0; });
-      tiles.forEach(tile => { tile.style.opacity = 0; });
-      const step = Math.max(50, Math.min(110, 900 / tiles.length));
-      tiles.forEach((tile, i) => later(() => {
-        tile.style.opacity = 1;
-        play(tile, [{transform: 'translateY(-14px) scale(.3)', opacity: 0}, {transform: 'scale(1.12)', opacity: 1, offset: .6}, {transform: 'none'}], {duration: 380, easing: B});
-        sfx('tick', {pitch: 1 + i / tiles.length * .6});
-      }, 220 + i * step));
-      const done = 220 + tiles.length * step + 260;
-      later(() => {
-        const box = show.querySelector('.award-big');
-        play(box, [{transform: 'scale(1)'}, {transform: 'scale(1.05)'}, {transform: 'scale(1)'}], {duration: 420, easing: B});
-        flash(box);
-        sfx('set');
-        rest.forEach((el, i) => {
-          el.style.opacity = 1;
-          play(el, [{opacity: 0, transform: 'translateY(8px)'}, {opacity: 1, transform: 'none'}], {duration: 280, delay: i * 70, easing: C});
-        });
-      }, done);
-      later(() => finishMeter(meter, big, false), done + 420);
     }
 
     function renderTitle(title, final) {
@@ -423,6 +369,7 @@
       const tierTag = show.querySelector('.award-tier');
       const meter = show.querySelector('[data-meter]');
       const praise = show.querySelector('.award-praise');
+      const teamLine = show.querySelector('.award-team');
       const seal = show.querySelector('.award-debut');
       const opens = show.querySelector('.award-opens');
       // 总长按稀有度分档：普通 ≈0.8s，新种类 ≈1.5s，集齐一行 ≈3s，全收集再长一点
@@ -432,7 +379,7 @@
         finishMeter(meter, award, true);
         return;
       }
-      [name, tierTag, praise, meter, seal, opens].forEach(el => el && (el.style.opacity = 0));
+      [name, tierTag, praise, teamLine, meter, seal, opens].forEach(el => el && (el.style.opacity = 0));
       // 1) 先停在灰色虚线剪影，让人看清楚"要变成什么"
       svg.style.filter = 'grayscale(1) opacity(.35)';
       later(() => {
@@ -460,7 +407,7 @@
       }, 620 + hold / 2);
       if (award.tier === 'all') later(() => { play(medal, [{transform: 'scale(1)'}, {transform: 'scale(1.16)'}, {transform: 'scale(1)'}], {duration: 520, easing: B}); sfx('level'); }, 620 + hold / 2 + 380);
       later(() => {
-        if (praise) { praise.style.opacity = 1; play(praise, [{opacity: 0, transform: 'translateY(8px)'}, {opacity: 1, transform: 'none'}], {duration: 280, easing: C}); }
+        [teamLine, praise].forEach((el, i) => { if (el) { el.style.opacity = 1; play(el, [{opacity: 0, transform: 'translateY(8px)'}, {opacity: 1, transform: 'none'}], {duration: 280, delay: i * 80, easing: C}); } });
         meter.style.opacity = 1;
         finishMeter(meter, award, false);
       }, 860 + hold);
@@ -538,7 +485,7 @@
 
     function showItem() {
       const item = queue[index];
-      if (item.type === 'title') titleSequence(item); else if (item.type === 'big') bigSequence(item); else sequence(item);
+      if (item.type === 'title') titleSequence(item); else sequence(item);
     }
 
     function next() {
@@ -547,7 +494,7 @@
       showItem();
       // 一个播完、停一拍再下一个；越稀有停得越久
       const item = queue[index];
-      const wait = item.type === 'title' ? 2300 : item.type === 'big' ? 3600 : item.tier === 'all' ? 4300 : {plain: 1900, new: 2500, row: 3400}[item.tier] + (item.debut ? 400 : 0);
+      const wait = item.type === 'title' ? 2300 : item.tier === 'all' ? 4300 : {plain: 1900, new: 2500, row: 3400}[item.tier] + (item.debut ? 400 : 0);
       if (index < queue.length - 1) later(() => { index += 1; next(); }, wait);
     }
 
@@ -570,10 +517,6 @@
     featureButton.addEventListener('click', async () => {
       const item = queue[index];
       close();
-      if (item.type === 'big') {
-        location.assign(`/big/${item.big_id}`);
-        return;
-      }
       if (item.type === 'title') {
         // 称号：直接盖到名牌上，刷新名牌
         const body = new URLSearchParams({csrf: document.querySelector('meta[name=csrf-token]').content, title: item.key});
@@ -607,9 +550,6 @@
           toast(`<span>縁側解锁：${unlocks.slice(0, 2).map(escapeHtml).join('、')}${unlocks.length > 2 ? ` 等 ${unlocks.length} 样` : ''}</span>`);
           sfx('set');
         }, motionOn() ? 900 : 0);
-      } else if (together.length) {
-        toast(`<span>合力纪念收好了</span><em>+${xpTotal} 经验</em>`);
-        if (unlocks.length) setTimeout(() => toast(`<span>縁側解锁：${unlocks.slice(0, 2).map(escapeHtml).join('、')}</span>`), motionOn() ? 900 : 0);
       } else {
         toast(`<span class="hanko n${fresh[0].name.length}" style="--c:${fresh[0].color}"><i>${escapeHtml(fresh[0].name)}</i></span><span>解锁了${fresh.length > 1 ? ` ${fresh.length} 个` : ''}称号</span>`);
       }

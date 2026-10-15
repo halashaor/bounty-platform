@@ -3,7 +3,6 @@
 {% from 'components/medal.html' import medal %}
 {% from 'components/ui.html' import ava, plate, csrf, hanko %}
 {% from 'components/blocks.html' import build_svg %}
-{% from 'components/bigs.html' import mosaic %}
 {% block title %}成就 · 結 YUI{% endblock %}
 {% block body_class %}page-honors{% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='case.js') }}" defer></script><script src="{{ url_for('static', filename='share.js') }}" defer></script>{% endblock %}
@@ -119,17 +118,17 @@
   </section>
 
   <section class="together panel" id="together" aria-labelledby="together-title">
-    <h2 class="sec" id="together-title">一起完成的大任务<span>{{ big_credits|length }}</span><small>拼满的图，带着你那几块</small></h2>
-    {% if big_credits %}
-    <ol class="together-list">{% for item in big_credits %}
-      <li><a href="{{ url_for('big_detail', big_id=item.big_id) }}">
-        <span class="together-art">{{ mosaic(item.tiles, 'm-keep') }}</span>
+    <h2 class="sec" id="together-title">一起完成的大任务<span>{{ together|length }}</span><small>和谁一起做的，都记着</small></h2>
+    {% if together %}
+    <ol class="together-list">{% for item in together %}
+      <li><a href="{{ url_for('detail', task_id=item.task_id) }}">
+        <span class="together-art">{{ medal(item.medal_key) }}<span class="together-crew">{% for person in item.crew[:5] %}{{ ava(person.name, person.id) }}{% endfor %}</span></span>
         <span class="together-text"><b>{{ item.title }}</b>
-          <small>{% if item.lead %}你牵头{% if item.pieces %} · 做完 {{ item.pieces }} 份{% endif %}{% else %}你做完 {{ item.pieces }} 份{% endif %} · {{ item.people }} 人一起 · +{{ item.bonus }} 经验 · {{ item.awarded_at|md }}</small>
-          <span class="together-quote"><q>{{ item.closing }}</q><cite>— {{ item.owner_name }}</cite></span></span></a></li>
+          <small>和 {{ item.crew|rejectattr('id', 'equalto', g.user.id)|map(attribute='name')|join('、') or '大家' }} 一起 · 「{{ medals[item.medal_key].name }}」+{{ task_xp(item.medal_key) + item.bonus }} 经验 · {{ item.awarded_at|md }}</small>
+          {% if item.praise and item.praise != '成果验收通过。' %}<span class="together-quote"><q>{{ item.praise }}</q><cite>— {{ item.owner_name }}</cite></span>{% endif %}</span></a></li>
     {% endfor %}</ol>
     {% else %}
-    <div class="empty"><b>还没有</b><span>在「大任务」里接一份分工，等大家一起做完，这里会留下一张拼满的图。</span><a class="btn btn-line btn-sm" href="{{ url_for('big_list') }}">看看大任务</a></div>
+    <div class="empty"><b>还没有</b><span>加入一个大任务，和队友一起做完，这里会记下和谁一起做的。</span><a class="btn btn-line btn-sm" href="{{ url_for('big_list') }}">看看大任务</a></div>
     {% endif %}
   </section>
 

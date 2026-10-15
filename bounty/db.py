@@ -27,10 +27,11 @@ CREATE TABLE IF NOT EXISTS events (
  body TEXT NOT NULL, created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS honors (
- task_id INTEGER PRIMARY KEY REFERENCES tasks(id),
+ task_id INTEGER NOT NULL REFERENCES tasks(id),
  user_id INTEGER NOT NULL REFERENCES users(id),
  medal_key TEXT NOT NULL,
- awarded_at TEXT NOT NULL, seen_at TEXT
+ awarded_at TEXT NOT NULL, seen_at TEXT,
+ PRIMARY KEY(task_id,user_id)
 );
 CREATE INDEX IF NOT EXISTS honors_by_user ON honors(user_id);
 CREATE TABLE IF NOT EXISTS featured_honors (
@@ -84,6 +85,13 @@ CREATE TABLE IF NOT EXISTS daily_solved (
  solved_at TEXT NOT NULL,
  PRIMARY KEY(user_id,day)
 );
+CREATE TABLE IF NOT EXISTS daily_lines (
+ user_id INTEGER NOT NULL REFERENCES users(id),
+ day TEXT NOT NULL,
+ level INTEGER NOT NULL,
+ solved_at TEXT NOT NULL,
+ PRIMARY KEY(user_id,day,level)
+);
 CREATE TABLE IF NOT EXISTS builds (
  id INTEGER PRIMARY KEY,
  user_id INTEGER NOT NULL REFERENCES users(id),
@@ -102,43 +110,13 @@ CREATE TABLE IF NOT EXISTS org_tags (
  created_by INTEGER REFERENCES users(id),
  created_at TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS big_tasks (
- id INTEGER PRIMARY KEY,
- title TEXT NOT NULL,
- goal TEXT NOT NULL,
- project TEXT,
- owner_id INTEGER NOT NULL REFERENCES users(id),
- deadline TEXT NOT NULL,
- status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','done')),
- closing TEXT,
- created_at TEXT NOT NULL,
- done_at TEXT
-);
-CREATE TABLE IF NOT EXISTS big_members (
- big_id INTEGER NOT NULL REFERENCES big_tasks(id),
+CREATE TABLE IF NOT EXISTS task_members (
+ task_id INTEGER NOT NULL REFERENCES tasks(id),
  user_id INTEGER NOT NULL REFERENCES users(id),
  joined_at TEXT NOT NULL,
- PRIMARY KEY(big_id,user_id)
+ PRIMARY KEY(task_id,user_id)
 );
-CREATE TABLE IF NOT EXISTS big_events (
- id INTEGER PRIMARY KEY,
- big_id INTEGER NOT NULL REFERENCES big_tasks(id),
- user_id INTEGER NOT NULL REFERENCES users(id),
- kind TEXT NOT NULL,
- body TEXT NOT NULL,
- created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS big_credits (
- big_id INTEGER NOT NULL REFERENCES big_tasks(id),
- user_id INTEGER NOT NULL REFERENCES users(id),
- lead INTEGER NOT NULL DEFAULT 0,
- pieces INTEGER NOT NULL DEFAULT 0,
- bonus INTEGER NOT NULL DEFAULT 0,
- awarded_at TEXT NOT NULL,
- seen_at TEXT,
- PRIMARY KEY(big_id,user_id)
-);
-CREATE INDEX IF NOT EXISTS big_credits_by_user ON big_credits(user_id);
+CREATE INDEX IF NOT EXISTS task_members_by_user ON task_members(user_id);
 CREATE TABLE IF NOT EXISTS lines_solved (
  user_id INTEGER NOT NULL REFERENCES users(id),
  level INTEGER NOT NULL,
@@ -204,11 +182,17 @@ def initialize(path):
             db.execute('ALTER TABLE tasks ADD COLUMN project TEXT')
         if 'cold' not in task_columns:   # 等了好几天才有人接的任务，完成时多给经验
             db.execute('ALTER TABLE tasks ADD COLUMN cold INTEGER NOT NULL DEFAULT 0')
-        if 'big_id' not in task_columns:   # 大任务的分工：属于哪个大任务（普通小任务为空）
-            db.execute('ALTER TABLE tasks ADD COLUMN big_id INTEGER REFERENCES big_tasks(id)')
-        db.execute('CREATE INDEX IF NOT EXISTS tasks_by_big ON tasks(big_id)')
+        if 'kind' not in task_columns:     # solo 小任务（一个人做）/ team 大任务（好几个人一起做）
+            db.execute("ALTER TABLE tasks ADD COLUMN kind TEXT NOT NULL DEFAULT 'solo'")
+        if 'team_size' not in task_columns:   # 大任务想要几个人；空 = 不限
+            db.execute('ALTER TABLE tasks ADD COLUMN team_size INTEGER')
+        if 'parent_id' not in task_columns:   # 从大任务里拆出来的分工：属于哪个大任务
+            db.execute('ALTER TABLE tasks ADD COLUMN parent_id INTEGER REFERENCES tasks(id)')
+        db.execute('CREATE INDEX IF NOT EXISTS tasks_by_parent ON tasks(parent_id)')
         if 'bonus' not in {row['name'] for row in db.execute('PRAGMA table_info(honors)')}:
             db.execute('ALTER TABLE honors ADD COLUMN bonus INTEGER NOT NULL DEFAULT 0')
+        if {row['name']: row['pk'] for row in db.execute('PRAGMA table_info(honors)')}.get('user_id') == 0:
+            _honors_per_person(db)
         user_columns = {row['name'] for row in db.execute('PRAGMA table_info(users)')}
         if 'title_key' not in user_columns:
             db.execute('ALTER TABLE users ADD COLUMN title_key TEXT')
@@ -236,8 +220,65 @@ def initialize(path):
             if not db.execute('SELECT 1 FROM org_tags').fetchone():
                 db.executemany(f'INSERT INTO org_tags (name,note,position,created_at) VALUES (?,?,?,{stamp})',
                                [(name, note, i) for i, (name, note) in enumerate(STARTER_TAGS, 1)])
+        if 'big_tasks' in tables:
+            _big_tasks_become_team_tasks(db)
         # Also resumes safely if startup was interrupted after the table migration.
         db.execute('''INSERT OR IGNORE INTO honors (task_id,user_id,medal_key,awarded_at)
             SELECT t.id,t.assignee_id,t.importance || '-' || t.urgency,
                    COALESCE((SELECT MAX(created_at) FROM events WHERE task_id=t.id AND kind='accept'),t.created_at)
             FROM tasks t WHERE t.status='done' AND t.assignee_id IS NOT NULL''')
+
+
+def _honors_per_person(db):
+    """Older honors were keyed by task alone (one medal per task); a big task gives one to everyone who did it."""
+    db.commit()
+    db.execute('BEGIN IMMEDIATE')
+    db.execute('''CREATE TABLE honors_people (
+     task_id INTEGER NOT NULL REFERENCES tasks(id),
+     user_id INTEGER NOT NULL REFERENCES users(id),
+     medal_key TEXT NOT NULL,
+     awarded_at TEXT NOT NULL, seen_at TEXT,
+     bonus INTEGER NOT NULL DEFAULT 0,
+     PRIMARY KEY(task_id,user_id)
+    )''')
+    db.execute('''INSERT INTO honors_people (task_id,user_id,medal_key,awarded_at,seen_at,bonus)
+        SELECT task_id,user_id,medal_key,awarded_at,seen_at,bonus FROM honors''')
+    db.execute('DROP TABLE honors')
+    db.execute('ALTER TABLE honors_people RENAME TO honors')
+    db.execute('CREATE INDEX IF NOT EXISTS honors_by_user ON honors(user_id)')
+    db.commit()
+
+
+def _big_tasks_become_team_tasks(db):
+    """A short-lived version kept big tasks in their own tables, with shares pointing at them through tasks.big_id.
+    Each one becomes a team task; its shares, members and talk move over, and a finished one's credits become medals
+    (「线」 is worth the same 30 experience the credit gave)."""
+    db.commit()
+    db.execute('BEGIN IMMEDIATE')
+    events = {'comment': 'comment', 'join': 'join', 'piece': 'split', 'close': 'accept'}
+    for big in db.execute('SELECT * FROM big_tasks ORDER BY id').fetchall():
+        tag = db.execute('''SELECT x.tag FROM task_tags x JOIN tasks t ON t.id=x.task_id WHERE t.big_id=?
+            GROUP BY x.tag ORDER BY COUNT(*) DESC,x.tag LIMIT 1''', (big['id'],)).fetchone()
+        tag = tag[0] if tag else (db.execute('SELECT name FROM org_tags ORDER BY position LIMIT 1').fetchone() or ['杂务'])[0]
+        members = [row['user_id'] for row in db.execute('SELECT user_id FROM big_members WHERE big_id=? AND user_id<>?',
+                                                        (big['id'], big['owner_id']))]
+        status = 'done' if big['status'] == 'done' else 'active' if members else 'open'
+        task_id = db.execute('''INSERT INTO tasks (title,description,category,project,importance,urgency,deadline,requirements,
+                owner_id,status,created_at,kind) VALUES (?,?,?,?,'standard','normal',?,?,?,?,?,'team')''',
+            (big['title'], big['goal'], tag, big['project'], big['deadline'], big['goal'], big['owner_id'], status,
+             big['created_at'])).lastrowid
+        db.execute('INSERT INTO task_tags (task_id,tag) VALUES (?,?)', (task_id, tag))
+        db.execute('''INSERT INTO task_members (task_id,user_id,joined_at) SELECT ?,user_id,joined_at FROM big_members
+            WHERE big_id=? AND user_id<>?''', (task_id, big['id'], big['owner_id']))
+        db.execute('UPDATE tasks SET parent_id=? WHERE big_id=?', (task_id, big['id']))
+        for event in db.execute('SELECT * FROM big_events WHERE big_id=? ORDER BY id', (big['id'],)).fetchall():
+            if event['kind'] in events:
+                db.execute('INSERT INTO events (task_id,user_id,kind,body,created_at) VALUES (?,?,?,?,?)',
+                           (task_id, event['user_id'], events[event['kind']], event['body'], event['created_at']))
+        db.execute('''INSERT OR IGNORE INTO honors (task_id,user_id,medal_key,awarded_at,seen_at,bonus)
+            SELECT ?,user_id,'standard-normal',awarded_at,seen_at,0 FROM big_credits WHERE big_id=?''', (task_id, big['id']))
+    db.execute('DROP INDEX IF EXISTS tasks_by_big')
+    db.execute('ALTER TABLE tasks DROP COLUMN big_id')
+    for table in ('big_credits', 'big_events', 'big_members', 'big_tasks'):
+        db.execute(f'DROP TABLE {table}')
+    db.commit()

@@ -59,7 +59,7 @@ def days_left(term):
 def build(db, user_id, term):
     start, end = bounds(term)
     span = (start.isoformat(), end.isoformat())
-    awards = db.execute('''SELECT h.*,t.title,t.project,t.importance,t.urgency,u.name owner,
+    awards = db.execute('''SELECT h.*,t.title,t.project,t.importance,t.urgency,t.kind,t.owner_id,u.name owner,
             (SELECT body FROM events e WHERE e.task_id=h.task_id AND e.kind='accept' ORDER BY e.id DESC LIMIT 1) praise,
             (SELECT COUNT(*) FROM claps c WHERE c.task_id=h.task_id) claps
         FROM honors h JOIN tasks t ON t.id=h.task_id JOIN users u ON u.id=t.owner_id
@@ -67,17 +67,13 @@ def build(db, user_id, term):
     xp_of = lambda row: task_xp(row['medal_key']) + row['bonus']
     before = sum(xp_of(row) for row in db.execute('SELECT medal_key,bonus FROM honors WHERE user_id=? AND awarded_at<?',
                                                   (user_id, span[0])))
-    bigs = db.execute('''SELECT b.title,c.lead,c.pieces,c.bonus,c.awarded_at FROM big_credits c JOIN big_tasks b ON b.id=c.big_id
-        WHERE c.user_id=? AND c.awarded_at<? ORDER BY c.awarded_at''', (user_id, span[1])).fetchall()
-    before += sum(row['bonus'] for row in bigs if row['awarded_at'] < span[0])
-    bigs = [row for row in bigs if row['awarded_at'] >= span[0]]
-    gained = sum(xp_of(row) for row in awards) + sum(row['bonus'] for row in bigs)
+    gained = sum(xp_of(row) for row in awards)
     tags = Counter()
     for row in db.execute('''SELECT x.tag FROM honors h JOIN task_tags x ON x.task_id=h.task_id
             WHERE h.user_id=? AND h.awarded_at>=? AND h.awarded_at<?''', (user_id, *span)):
         tags[row['tag']] += 1
     medals = Counter(row['medal_key'] for row in awards)
-    helped = list(dict.fromkeys(row['owner'] for row in awards))
+    helped = list(dict.fromkeys(row['owner'] for row in awards if row['owner_id'] != user_id))
     praises = [dict(text=row['praise'], by=row['owner'], title=row['title']) for row in awards
                if row['praise'] and row['praise'] != DEFAULT_PRAISE][::-1]
     biggest = max(awards, key=lambda row: (xp_of(row), row['awarded_at']), default=None)
@@ -93,9 +89,10 @@ def build(db, user_id, term):
     unlocked = [BY_KEY[row['key']] for row in db.execute(
         'SELECT key FROM titles_seen WHERE user_id=? AND seen_at>=? AND seen_at<? ORDER BY seen_at', (user_id, *span))
         if row['key'] in BY_KEY]
-    team = db.execute('''SELECT COUNT(*) done, COUNT(DISTINCT t.assignee_id) people FROM events e JOIN tasks t ON t.id=e.task_id
-        WHERE e.kind='accept' AND e.created_at>=? AND e.created_at<?''', span).fetchone()
-    lines = db.execute('SELECT COUNT(*) FROM lines_solved WHERE user_id=? AND solved_at>=? AND solved_at<?', (user_id, *span)).fetchone()[0]
+    team = db.execute('''SELECT (SELECT COUNT(*) FROM events e WHERE e.kind='accept' AND e.created_at>=? AND e.created_at<?) done,
+        (SELECT COUNT(DISTINCT user_id) FROM honors WHERE awarded_at>=? AND awarded_at<?) people''', span + span).fetchone()
+    lines = sum(db.execute(f'SELECT COUNT(*) FROM {table} WHERE user_id=? AND solved_at>=? AND solved_at<?', (user_id, *span)).fetchone()[0]
+                for table in ('lines_solved', 'daily_lines'))
     stamp = db.execute("""SELECT MAX(score) FROM game_runs WHERE user_id=? AND game='stamp' AND finished_at>=? AND finished_at<?""",
                        (user_id, *span)).fetchone()[0]
     return dict(
@@ -105,6 +102,6 @@ def build(db, user_id, term):
         helped=helped, tags=tags.most_common(3), praises=praises[:3], claps=sum(row['claps'] for row in awards),
         biggest=dict(title=biggest['title'], key=biggest['medal_key'], owner=biggest['owner'], xp=xp_of(biggest)) if biggest else None,
         best_week=dict(monday=best_week[0], count=best_week[1]) if best_week and best_week[1] > 1 else None,
-        published=published, titles=unlocked, bigs=[dict(title=row['title'], lead=bool(row['lead'])) for row in bigs], team=dict(team), lines=lines, stamp=stamp or 0,
+        published=published, titles=unlocked, bigs=[dict(title=row['title'], lead=row['owner_id'] == user_id) for row in awards if row['kind'] == 'team'], team=dict(team), lines=lines, stamp=stamp or 0,
         first=dict(title=awards[0]['title'], on=awards[0]['awarded_at']) if awards else None,
     )

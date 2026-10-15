@@ -22,7 +22,7 @@
 {%- set task = pick.task -%}{%- set key = medal_key(task) -%}{%- set left = due_label(task.deadline) -%}
 {%- set sticker_colors = {'unlock': '#F39800', 'skill': '#00A27A', 'similar': '#00A27A', 'project': '#2866B1', 'new-project': '#2866B1',
                           'interest': '#00AEE0', 'urgent': '#E54465', 'quick': '#00A27A', 'cold': '#9C6B3F',
-                          'crew': '#1B1D2A', 'big': '#1B1D2A'} -%}
+                          'crew': '#1B1D2A', 'big': '#1B1D2A', 'team': '#1B1D2A'} -%}
 <article class="pick" style="--i:{{ i }};--hue:{{ medals[key].hue }}" data-pick="{{ task.id }}">
   <a class="cover" href="{{ url_for('detail', task_id=task.id) }}" aria-label="{{ task.title }}"></a>
   <div class="pick-field">{{ field_art(i + (1 if lane == 'want' else 0)) }}
@@ -32,10 +32,10 @@
   {{ medal(key, 'pick-medal', label='完成可得 ' ~ medals[key].name) }}
   <div class="pick-body">
     <span class="kicker">{{ task.project or (pick.tags[0] if pick.tags else '') }}<span>·</span>{{ effort_labels[task.importance] }}<span>·</span><span class="{{ 'soon' if left[1] }}">{{ left[0] }}</span></span>
-    <h3>{% if task.big_title %}{{ big_tag(task.big_title) }}{% endif %}{{ task.title }}</h3>
-    <p class="goal">{{ task.description or '大任务「' ~ task.big_title ~ '」的一份分工' }}</p>
-    <div class="pick-foot">{{ ava(task.owner_name, task.owner_id) }}<span>{{ task.owner_name }}</span><span class="xp">+{{ offer_xp(task) }} 经验</span>
-      <form method="post" action="{{ url_for('task_action', task_id=task.id, action='claim') }}" data-quick-claim>{{ csrf() }}<button class="btn btn-sm">认领</button></form></div>
+    <h3>{% if task.kind == 'team' %}{{ big_tag('大任务') }}{% elif task.big_title %}{{ big_tag(task.big_title) }}{% endif %}{{ task.title }}</h3>
+    <p class="goal">{{ task.description or '大任务「' ~ task.big_title ~ '」拆出来的一份分工' }}</p>
+    <div class="pick-foot">{{ ava(task.owner_name, task.owner_id) }}<span>{{ task.owner_name }}</span><span class="xp">{{ '每人 ' if task.kind == 'team' }}+{{ offer_xp(task) }} 经验</span>
+      <form method="post" action="{{ url_for('task_action', task_id=task.id, action='join' if task.kind == 'team' else 'claim') }}" data-quick-claim>{{ csrf() }}<button class="btn btn-sm">{{ '加入' if task.kind == 'team' else '认领' }}</button></form></div>
   </div>
 </article>
 {%- endmacro %}

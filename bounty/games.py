@@ -44,6 +44,11 @@ LEVELS = (
 )
 
 FREE_LEVELS = 3     # 前三关直接开，之后画完一关开下一关
+# 每天的关卡：程序按日期出题，全队同一套，一关比一关难；画完一关开下一关。最近 DAILY_DAYS 天的都还能补画。
+# (点阵边长, 线数, 回头倾向, 想要几个岔路口)。难度主要来自岔路口（连着 3 条线以上的点）：回头倾向越大，
+# 线越往已经到过的点上走，岔路口越多。每关试几个种子，挑岔路口数最接近目标的，保证一天之内一关比一关难。
+DAILY_STEPS = ((4, 7, 1, 1), (4, 9, 1.5, 2), (4, 12, 2.5, 3), (4, 15, 4, 4), (5, 18, 4, 5), (5, 22, 6, 7))
+DAILY_DAYS = 7
 
 # 盖章挑战的玩法：越往后越快、越乱。unlock 是 unlocks.py 里的条目，None 表示一开始就能玩
 MODES = {
@@ -86,26 +91,26 @@ def check_stroke(board, stroke):
     return Counter(frozenset(pair) for pair in zip(stroke, stroke[1:])) == Counter(frozenset(edge) for edge in edges)
 
 
-GRID = (12, 37, 63, 88)
-
-
-def generate(seed, steps):
-    """A fresh puzzle: the trace of a random walk on a 4×4 grid of dots (moves to any of the 8 neighbours, never
-    reusing a line). The walk itself is a solution, so every generated puzzle can be drawn in one stroke."""
+def generate(seed, steps, size=4, name=None, revisit=1):
+    """A fresh puzzle: the trace of a random walk on a size×size grid of dots (moves to any of the 8 neighbours, never
+    reusing a line). The walk itself is a solution, so every generated puzzle can be drawn in one stroke.
+    revisit > 1 makes the walk prefer dots it has already been to, which makes more crossroads and a harder puzzle."""
+    grid = [round(12 + i * 76 / (size - 1)) for i in range(size)]
     rng = random.Random(seed)
     best = []
     for _ in range(40):
-        position = (rng.randrange(4), rng.randrange(4))
-        used, trail = [], [position]
+        position = (rng.randrange(size), rng.randrange(size))
+        used, trail, seen = [], [position], {position}
         while len(used) < steps:
             x, y = position
             options = [(x + dx, y + dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1) if (dx or dy)
-                       and 0 <= x + dx < 4 and 0 <= y + dy < 4 and frozenset((position, (x + dx, y + dy))) not in used]
+                       and 0 <= x + dx < size and 0 <= y + dy < size and frozenset((position, (x + dx, y + dy))) not in used]
             if not options:
                 break
-            position = rng.choice(options)
+            position = rng.choice(options) if revisit == 1 else rng.choices(options, [revisit if o in seen else 1 for o in options])[0]
             used.append(frozenset((trail[-1], position)))
             trail.append(position)
+            seen.add(position)
         if len(used) > len(best):
             best = used
         if len(best) >= steps:
@@ -114,18 +119,49 @@ def generate(seed, steps):
     index = {point: i for i, point in enumerate(points)}
     edges = [tuple(index[point] for point in sorted(edge)) for edge in best]
     rng.shuffle(edges)
-    return (f'#{seed}', tuple((GRID[x], GRID[y]) for x, y in points), tuple(edges))
+    return (name or f'#{seed}', tuple((grid[x], grid[y]) for x, y in points), tuple(edges))
 
 
 def today():
-    """The team's calendar day: everyone gets the same daily puzzle whatever their time zone."""
+    """The team's calendar day: everyone gets the same daily levels whatever their time zone."""
     return datetime.now(timezone.utc).astimezone(TEAM_TZ).date().isoformat()
 
 
-def daily_board(day):
-    seed = zlib.crc32(f'daily-{day}'.encode())
-    name, nodes, edges = generate(seed, 11 + seed % 5)
-    return (f'{day[5:7]}/{day[8:]} 每日一笔', nodes, edges)
+def recent_days():
+    """Today first, then the days that can still be caught up on."""
+    first = datetime.fromisoformat(today())
+    return [(first - timedelta(days=back)).date().isoformat() for back in range(DAILY_DAYS)]
+
+
+def day_label(day):
+    back = recent_days().index(day) if day in recent_days() else None
+    return {0: '今天', 1: '昨天'}.get(back, f'{int(day[5:7])}/{int(day[8:])}')
+
+
+def daily_board(day, n):
+    """Level n (1-based) of a day's set; the date is the seed, so the whole team gets the same puzzles."""
+    size, steps, revisit, target = DAILY_STEPS[n - 1]
+    name = f'{int(day[5:7])}/{int(day[8:])} 第 {n} 关'
+    tries = [generate(zlib.crc32(f'daily-{day}-{n}-{k}'.encode()), steps, size, name, revisit) for k in range(12)]
+    return min(tries, key=lambda board: (abs(crossroads(board) - target), len(board[1])))
+
+
+def crossroads(board):
+    degree = Counter(dot for edge in board[2] for dot in edge)
+    return sum(1 for n in degree.values() if n >= 3)
+
+
+def daily_state(db, user_id, day):
+    solved = {row['level'] for row in db.execute('SELECT level FROM daily_lines WHERE user_id=? AND day=?', (user_id, day))}
+    total = len(DAILY_STEPS)
+    return dict(day=day, label=day_label(day), solved=solved, total=total,
+                open=[n for n in range(1, total + 1) if n == 1 or n - 1 in solved],
+                next=next((n for n in range(1, total + 1) if n not in solved), None))
+
+
+def daily_overview(db, user_id):
+    """Every day that can still be played, with how far this person got."""
+    return [daily_state(db, user_id, day) for day in recent_days()]
 
 
 def random_board(seed):
@@ -140,7 +176,12 @@ def board_for(db, user_id, kind, value):
             raise InvalidAction(f'先画完第 {value - 1} 关，第 {value} 关就开了。')
         return LEVELS[value - 1]
     if kind == 'daily':
-        return daily_board(today())
+        day, n = value
+        if day not in recent_days() or not 1 <= n <= len(DAILY_STEPS):
+            raise InvalidAction(f'只能画最近 {DAILY_DAYS} 天的关卡。')
+        if n not in daily_state(db, user_id, day)['open']:
+            raise InvalidAction(f'先画完这天的第 {n - 1} 关。')
+        return daily_board(day, n)
     if not state['random']:
         raise InvalidAction(f'随机一笔要{unlocks.need_text(unlocks.BY_ID["random"][3])}才开。')
     return random_board(value)
@@ -156,15 +197,18 @@ def solve(path, user_id, kind, value, stroke):
             first = not db.execute('SELECT 1 FROM lines_solved WHERE user_id=? AND level=?', (user_id, value)).fetchone()
             db.execute('INSERT OR IGNORE INTO lines_solved (user_id,level,solved_at) VALUES (?,?,?)', (user_id, value, now()))
         elif kind == 'daily':
-            first = not db.execute('SELECT 1 FROM daily_solved WHERE user_id=? AND day=?', (user_id, today())).fetchone()
-            db.execute('INSERT OR IGNORE INTO daily_solved (user_id,day,solved_at) VALUES (?,?,?)', (user_id, today(), now()))
+            day, n = value
+            first = not db.execute('SELECT 1 FROM daily_lines WHERE user_id=? AND day=? AND level=?', (user_id, day, n)).fetchone()
+            db.execute('INSERT OR IGNORE INTO daily_lines (user_id,day,level,solved_at) VALUES (?,?,?,?)', (user_id, day, n, now()))
         return dict(first=first, titles=_new_game_titles(db, user_id), state=lines_state(db, user_id),
-                    daily=daily_count(db) if kind == 'daily' else None)
+                    day=daily_state(db, user_id, value[0]) if kind == 'daily' else None,
+                    daily=daily_count(db, value[0]) if kind == 'daily' else None)
 
 
 def daily_count(db, day=None):
-    """How many teammates have drawn today's puzzle (no ranking, just company)."""
-    return db.execute('SELECT COUNT(*) FROM daily_solved WHERE day=?', (day or today(),)).fetchone()[0]
+    """How many teammates have drawn every level of a day (no ranking, just company)."""
+    return db.execute('''SELECT COUNT(*) FROM (SELECT user_id FROM daily_lines WHERE day=? GROUP BY user_id
+        HAVING COUNT(*)>=?)''', (day or today(), len(DAILY_STEPS))).fetchone()[0]
 
 
 # ---------- 盖章挑战 ----------

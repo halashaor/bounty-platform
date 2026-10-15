@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% from 'components/icon.html' import icon %}
-{% set heading = {'level': '第 ' ~ value ~ ' 关 · ' ~ name, 'daily': name, 'random': '随机一笔 · 第 ' ~ value ~ ' 号'}[kind] %}
+{% if kind == 'level' %}{% set heading = '入门第 ' ~ value ~ ' 关 · ' ~ name %}{% elif kind == 'daily' %}{% set heading = name %}{% else %}{% set heading = '随机一笔 · 第 ' ~ value ~ ' 号' %}{% endif %}
 {% block title %}一笔画 · {{ heading }} · 結 YUI{% endblock %}
 {% block body_class %}page-game{% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='games.js') }}" defer></script>{% endblock %}
@@ -12,7 +12,7 @@
   </header>
   <div class="lines-layout">
     <section class="board-wrap panel" aria-label="{{ heading }}">
-      {% if kind == 'daily' %}<p class="board-note">{{ icon('sun') }}全队今天都是这一题{% if daily.done %}，你已经画出来了，可以再画一次{% endif %} · 今天 <b class="num" data-daily-count>{{ daily.count }}</b> 人画出来了</p>{% endif %}
+      {% if kind == 'daily' %}<p class="board-note">{{ icon('sun') }}{{ daily.day.label }}的 {{ daily.day.total }} 关全队都一样，一关比一关难{% if value[1] in daily.day.solved %} · 这关你画过了，可以再画一次{% endif %} · <b class="num" data-daily-count>{{ daily.count }}</b> 人全画完了</p>{% endif %}
       <svg class="board" viewBox="-8 -8 116 116" data-board data-solve="{{ solve }}" role="img"
            aria-label="{{ board.nodes|length }} 个点、{{ board.edges|length }} 条线，用一笔走完所有的线">
         <g data-edges>{% for a, b in board.edges %}<line class="edge" data-edge="{{ loop.index0 }}" x1="{{ board.nodes[a][0] }}" y1="{{ board.nodes[a][1] }}" x2="{{ board.nodes[b][0] }}" y2="{{ board.nodes[b][1] }}"/>{% endfor %}</g>
@@ -27,14 +27,24 @@
         <span class="board-progress"><b class="num" data-progress>0</b> / {{ board.edges|length }} 条线</span>
       </div>
       <noscript><p class="empty">一笔画需要开启 JavaScript。</p></noscript>
-      <div class="solved" data-solved hidden>
+      <div class="clear-card" data-solved hidden>
         <span class="solved-stamp">通关</span>
         <p data-solved-text>一笔走完了 {{ board.edges|length }} 条线。</p>
         <div class="solved-actions" data-solved-actions></div>
       </div>
     </section>
     <aside class="level-side panel">
-      <h2 class="sec">关卡<span>画完 {{ state.solved|length }} / {{ state.total }}</span></h2>
+      {% set d = daily.day %}
+      <h2 class="sec">每天的关卡<span data-count="daily">{{ d.label }} {{ d.solved|length }} / {{ d.total }}</span></h2>
+      <nav class="day-pick" aria-label="哪一天">{% for item in days %}<a class="chip" href="{{ url_for('play_daily', day=item.day, n=item.next or item.total) }}" {% if item.day == d.day %}aria-current="true"{% endif %}>{{ item.label }}{% if item.solved|length == item.total %}<i class="day-done" aria-label="全画完了">✓</i>{% elif item.solved %}<i class="num">{{ item.solved|length }}/{{ item.total }}</i>{% endif %}</a>{% endfor %}</nav>
+      <ol class="levels daily-levels">
+        {% for n in range(1, d.total + 1) %}
+        <li>{% if n in d.open %}<a class="lvl{{ ' solved' if n in d.solved }}{{ ' now' if kind == 'daily' and n == value[1] }}" href="{{ url_for('play_daily', day=d.day, n=n) }}" aria-label="{{ d.label }}第 {{ n }} 关{{ '，已画完' if n in d.solved }}">{{ n }}</a>
+        {% else %}<span class="lvl locked" title="画完第 {{ n - 1 }} 关就开" aria-label="第 {{ n }} 关，画完第 {{ n - 1 }} 关就开">{{ icon('lock') }}</span>{% endif %}</li>
+        {% endfor %}
+      </ol>
+      <p class="side-note">每天零点换一套新的 {{ d.total }} 关，最近 {{ days|length }} 天的都还能补。</p>
+      <h2 class="sec">入门<span data-count="level">画完 {{ state.solved|length }} / {{ state.total }}</span></h2>
       <ol class="levels">
         {% for item in levels %}{% set n = loop.index %}
         <li>{% if n in state.open %}<a class="lvl{{ ' solved' if n in state.solved }}{{ ' now' if kind == 'level' and n == value }}" href="{{ url_for('play_lines', level=n) }}" aria-label="第 {{ n }} 关 {{ item[0] }}{{ '，已画完' if n in state.solved }}">{{ n }}</a>
@@ -42,7 +52,6 @@
         {% endfor %}
       </ol>
       <div class="side-modes">
-        <a class="mode{{ ' now' if kind == 'daily' }}" href="{{ url_for('play_daily') }}">{{ icon('sun') }}<span><b>每日一笔</b><small>{{ '今天画过了' if daily.done else '全队同一题，每天换' }}</small></span></a>
         {% if state.random %}<a class="mode{{ ' now' if kind == 'random' }}" href="{{ url_for('play_random') }}">{{ icon('dice') }}<span><b>随机一笔</b><small>无限出题</small></span></a>
         {% else %}<span class="mode locked">{{ icon('lock') }}<span><b>随机一笔</b><small>{{ random_need }}后开放</small></span></span>{% endif %}
       </div>

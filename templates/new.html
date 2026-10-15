@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% from 'components/icon.html' import icon %}
 {% from 'components/medal.html' import medal %}
-{% from 'components/ui.html' import ava, csrf %}
+{% from 'components/ui.html' import ava, csrf, big_tag %}
 {% block title %}发布任务 · 結 YUI{% endblock %}
 {% block body_class %}page-new{% endblock %}
 {% block content %}
@@ -11,12 +11,12 @@
 <div class="wrap compose">
   <form class="editor panel" method="post" action="{{ url_for('new_task') }}" data-editor>
     {{ csrf() }}
-    <nav class="kind-switch" aria-label="发布什么">
-      <a href="{{ url_for('new_task') }}" aria-current="page"><b>小任务</b><small>一个人就能做完</small></a>
-      <a href="{{ url_for('new_big') }}"><b>大任务</b><small>好几个人分工一起做</small></a>
-    </nav>
+    <div class="kind-switch" role="radiogroup" aria-label="发布什么">
+      <label><input type="radio" name="kind" value="solo" {% if kind != 'team' %}checked{% endif %} data-preview="kind"><b>小任务</b><small>一个人认领，一个人做完</small></label>
+      <label><input type="radio" name="kind" value="team" {% if kind == 'team' %}checked{% endif %} data-preview="kind"><b>大任务</b><small>好几个人加入，一起做完</small></label>
+    </div>
     <h1>发布任务</h1>
-    <p class="intro">写清楚要什么、做到什么程度算完成。发布后会出现在「发现」里，系统会推荐给做过相似任务的同学。</p>
+    <p class="intro">写清楚要什么、做到什么程度算完成。发布后会出现在「发现」里，系统会推荐给做过相似任务的同学。<span class="team-only">大任务一起做的每个人都拿勋章；做着做着想分头干，可以随时拆出分工。</span></p>
     <label class="field"><span>标题<small>用动词开头，比如「复现」「造」「整理」</small></span>
       <input name="title" required maxlength="120" value="{{ form.get('title', '') }}" placeholder="例如：给模拟赛造数据" data-preview="title"></label>
     <label class="field"><span>任务说明<small>背景和目标，一两句也行</small></span>
@@ -46,19 +46,26 @@
       <label class="field"><span>截止时间<small>按你这里的时间填</small></span>
         <input type="datetime-local" name="deadline" required value="{{ form.get('deadline', '') }}"></label>
     </div>
-    <div class="submit-row"><p>有人认领前都可以在讨论区补充说明。</p><button class="btn btn-big primary" type="submit">{{ icon('plus') }}发布</button></div>
+    <div class="two team-only">
+      <label class="field"><span>想要几个人<small>人够了就不再招人</small></span>
+        <select name="team_size">{% set size = form.get('team_size', '') %}<option value="">不限</option>{% for n in [2, 3, 4, 5, 6, 8, 10] %}<option value="{{ n }}" {% if size == n|string %}selected{% endif %}>{{ n }} 人</option>{% endfor %}</select></label>
+      <div class="field"><span>你自己</span>
+        <label class="self-join"><input type="checkbox" name="join_self" value="1" {% if form.get('join_self') or (request.method == 'GET' and kind == 'team') %}checked{% endif %}><span><b>我也一起做</b><small>发布者也能加入自己的大任务；验收时至少要发给一个别人</small></span></label></div>
+    </div>
+    <div class="submit-row"><p>发布后也可以在讨论区补充说明。</p><button class="btn btn-big primary" type="submit">{{ icon('plus') }}发布</button></div>
   </form>
 
   <aside class="preview-col" aria-label="预览">
     <span class="label">「发现」里会这样显示</span>
     <article class="card" data-preview-card>
       <div class="card-top"><span data-preview-medal>{{ medal(importance ~ '-' ~ urgency) }}</span><span class="due">刚发布</span></div>
+      <span class="team-only">{{ big_tag('大任务') }}</span>
       <h3 data-out="title">{{ form.get('title') or '任务标题' }}</h3>
       <p class="goal" data-out="description">{{ form.get('description') or '任务说明会显示在这里。' }}</p>
       <div class="tags" data-out="tags"></div>
       <div class="card-foot"><span class="eff" data-out="effort">{{ effort_labels[importance] }}</span><span class="xp" data-out="xp">+{{ task_xp(importance ~ '-' ~ urgency) }}</span><span class="who">{{ ava(g.user.name, g.user.id) }}{{ g.user.name }}</span></div>
     </article>
-    <div class="explain panel"><span data-preview-medal-big>{{ medal(importance ~ '-' ~ urgency, 'anim') }}</span><div><b data-out="medal">完成的人得到「{{ medals[importance ~ '-' ~ urgency].name }}」</b><p>任务越重，勋章填得越满、经验越多；加急的勋章换暖色，挂「急」角标。</p></div></div>
+    <div class="explain panel"><span data-preview-medal-big>{{ medal(importance ~ '-' ~ urgency, 'anim') }}</span><div><b data-out="medal">{{ '一起做的每个人得到' if kind == 'team' else '完成的人得到' }}「{{ medals[importance ~ '-' ~ urgency].name }}」</b><p>任务越重，勋章填得越满、经验越多；加急的勋章换暖色，挂「急」角标。</p></div></div>
     <template data-medal-template>{% for key in medals %}<span data-key="{{ key }}">{{ medal(key) }}</span>{% endfor %}</template>
   </aside>
 </div>

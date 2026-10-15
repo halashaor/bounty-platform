@@ -208,8 +208,9 @@
       const tags = pickedTags().slice(0, 3);
       out('tags').forEach(el => { el.innerHTML = tags.map(t => `<span class="tag">${escape(t)}</span>`).join(''); });
       out('effort').forEach(el => { el.textContent = effort[importance]; });
-      out('xp').forEach(el => { el.textContent = `+${urgency === 'urgent' ? xp[importance] * 1.5 : xp[importance]}`; });
-      out('medal').forEach(el => { el.textContent = `完成的人得到「${names[key]}」`; });
+      const team = value('kind') === 'team';
+      out('xp').forEach(el => { el.textContent = `${team ? '每人 ' : ''}+${urgency === 'urgent' ? xp[importance] * 1.5 : xp[importance]}`; });
+      out('medal').forEach(el => { el.textContent = `${team ? '一起做的每个人得到' : '完成的人得到'}「${names[key]}」`; });
       if (key !== lastKey) {
         document.querySelector('[data-preview-medal]').innerHTML = medal(key);
         const big = document.querySelector('[data-preview-medal-big]');
@@ -234,68 +235,5 @@
       feel.play(event.target.closest('.chip'), [{transform: 'scale(.9)'}, {transform: 'scale(1)'}], {duration: 200, easing: feel.B});
       feel.sfx('tap');
     });
-  }
-  /* ---------- 发起大任务：分工一行行加减，右边的拼图跟着变；写了标题的那块先亮起来 ---------- */
-  const bigEditor = document.querySelector('[data-big-editor]');
-  if (bigEditor) {
-    const list = bigEditor.querySelector('[data-piece-list]');
-    const rowTemplate = bigEditor.querySelector('template[data-piece-template]');
-    const preview = document.querySelector('[data-big-preview]');
-    const shapes = Object.fromEntries([...document.querySelector('template[data-tile-template]').content.querySelectorAll('[data-importance]')]
-      .map(g => [g.dataset.importance, g.innerHTML]));
-    const hues = JSON.parse(document.querySelector('[data-medal-hues]').textContent);
-    const rows = () => [...list.querySelectorAll('[data-piece-row]')];
-    const MAX = 30;
-    let lit = new Set();
-    const draw = () => {
-      const items = rows().map(row => ({kind: row.querySelector('[name=piece_kind]').value, named: !!row.querySelector('[name=piece_title]').value.trim()}));
-      const n = Math.max(items.length, 1);
-      const cols = Math.min(n, Math.ceil(Math.sqrt(n * 1.6)));
-      const lines = Math.ceil(n / cols);
-      const last = items.length - (lines - 1) * cols;
-      const svg = preview.querySelector('svg');
-      svg.setAttribute('viewBox', `0 0 ${cols * 44 - 4} ${lines * 44 - 4}`);
-      const now = new Set();
-      svg.innerHTML = items.map((item, i) => {
-        const line = Math.floor(i / cols);
-        const x = (i % cols) * 44 + (line === lines - 1 ? (cols - last) * 22 : 0);
-        if (item.named) now.add(i);
-        // 新亮起来的那块弹一下，其余的不重播
-        const fresh = item.named && !lit.has(i) ? ' fresh' : '';
-        return `<g transform="translate(${x} ${line * 44})"><g class="mt ${item.named ? 'done' : 'open'}${fresh}" style="--c:${hues[item.kind].hue};--i:0">${shapes[item.kind.split('-')[0]]}</g></g>`;
-      }).join('');
-      svg.querySelectorAll('.fresh').forEach(g => feel.play(g, [{transform: 'scale(.4)', opacity: 0}, {transform: 'scale(1)', opacity: 1}], {duration: 420, easing: feel.B}));
-      if (now.size > lit.size) feel.sfx('tap');
-      lit = now;
-      preview.querySelector('[data-piece-count]').textContent = String(items.filter(item => item.named).length);
-      rows().forEach((row, i) => { row.querySelector('.piece-no').textContent = String(i + 1); });
-      bigEditor.querySelector('[data-piece-add]').hidden = items.length >= MAX;
-    };
-    bigEditor.querySelector('[data-piece-add]').addEventListener('click', () => {
-      const row = rowTemplate.content.firstElementChild.cloneNode(true);
-      list.append(row);
-      draw();
-      row.querySelector('[name=piece_title]').focus();
-      feel.play(row, [{transform: 'translateY(-6px)', opacity: 0}, {transform: 'none', opacity: 1}], {duration: 260, easing: feel.C});
-    });
-    list.addEventListener('click', event => {
-      const button = event.target.closest('[data-piece-remove]');
-      if (!button) return;
-      const row = button.closest('[data-piece-row]');
-      if (rows().length <= 2) {
-        // 至少留两份：清空这一行，不删掉
-        row.querySelectorAll('input').forEach(input => { input.value = ''; });
-        draw();
-        feel.toast('<span>大任务至少两份分工</span>');
-        return;
-      }
-      row.remove();
-      lit = new Set();
-      draw();
-      feel.sfx('tap');
-    });
-    bigEditor.addEventListener('input', draw);
-    bigEditor.addEventListener('change', draw);
-    draw();
   }
 })();

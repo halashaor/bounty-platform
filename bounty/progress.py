@@ -26,18 +26,12 @@ def level_info(xp):
                 percent=round((xp - floor) * 100 / (ceiling - floor)))
 
 
-def big_xp(db, user_id):
-    """Experience from finished big tasks (the wrap-up bonus), on top of each share's own medal."""
-    return db.execute('SELECT COALESCE(SUM(bonus),0) FROM big_credits WHERE user_id=?', (user_id,)).fetchone()[0]
-
-
 def person_progress(db, user_id):
     rows_ = db.execute('SELECT medal_key,bonus FROM honors WHERE user_id=?', (user_id,)).fetchall()
     keys = [row['medal_key'] for row in rows_]
     counts = {key: keys.count(key) for key in MEDALS}
     rows = {name: all(counts[key] for key in members) for name, (_, members) in ROWS.items()}
-    xp = sum(task_xp(row['medal_key']) + row['bonus'] for row in rows_) + big_xp(db, user_id)
-    return dict(level_info(xp), counts=counts,
+    return dict(level_info(sum(task_xp(row['medal_key']) + row['bonus'] for row in rows_)), counts=counts,
                 kinds=sum(1 for n in counts.values() if n), total=len(keys), rows=rows, complete=all(rows.values()))
 
 
@@ -45,8 +39,6 @@ def everyone_levels(db):
     totals = {}
     for row in db.execute('SELECT user_id,medal_key,bonus FROM honors'):
         totals[row['user_id']] = totals.get(row['user_id'], 0) + task_xp(row['medal_key']) + row['bonus']
-    for row in db.execute('SELECT user_id,SUM(bonus) bonus FROM big_credits GROUP BY user_id'):
-        totals[row['user_id']] = totals.get(row['user_id'], 0) + row['bonus']
     return {user_id: level_info(xp) for user_id, xp in totals.items()}
 
 

@@ -51,14 +51,14 @@
 <article class="card{{ ' done' if task.status == 'done' }}{{ ' wants' if wants }}" data-task="{{ task.id }}" style="--i:{{ i }}">
   <a class="cover" href="{{ url_for('detail', task_id=task.id) }}" aria-label="{{ task.title }}"></a>
   <div class="card-top">{{ medal(key) }}{% if wants %}<span class="newtag">新勋章</span>{% endif %}{% set waited = cold_days(task) %}{% if waited %}<span class="coldtag" title="等了 {{ waited }} 天没人接，完成后经验 +20%">冷门 +20%</span>{% endif %}{{ due(task) }}</div>
-  <h3>{% if task.big_title %}{{ big_tag(task.big_title) }}{% endif %}{{ task.title }}</h3>
-  <p class="goal">{{ task.description or '大任务「' ~ task.big_title ~ '」的一份分工' }}</p>
+  <h3>{% if task.kind == 'team' %}{{ big_tag('大任务 · ' ~ ('想要 ' ~ task.team_size ~ ' 人' if task.team_size else '人数不限')) }}{% elif task.big_title %}{{ big_tag(task.big_title) }}{% endif %}{{ task.title }}</h3>
+  <p class="goal">{{ task.description or '大任务「' ~ task.big_title ~ '」拆出来的一份分工' }}</p>
   {% if tags %}<div class="tags">{% for tag in tags[:3] %}<span class="tag">{{ tag }}</span>{% endfor %}</div>{% endif %}
-  <div class="card-foot"><span class="eff">{{ effort_labels[task.importance] }}</span><span class="xp">+{{ offer_xp(task) }}</span><span class="who">{{ ava(task.owner_name, task.owner_id) }}{{ task.owner_name }}</span></div>
+  <div class="card-foot"><span class="eff">{{ effort_labels[task.importance] }}</span><span class="xp">{{ '每人 ' if task.kind == 'team' }}+{{ offer_xp(task) }}</span>{% if task.kind == 'team' and task.status in ('open', 'active') %}<span class="team-count">{{ task.people or 0 }}{{ ' / ' ~ task.team_size if task.team_size }} 人</span>{% endif %}<span class="who">{{ ava(task.owner_name, task.owner_id) }}{{ task.owner_name }}</span></div>
 </article>
 {%- endmacro %}
 
-{# 小任务卡上的一行：这是哪个大任务的分工 #}
+{# 任务卡标题上的一行小字：大任务，或者这份分工属于哪个大任务 #}
 {% macro big_tag(title) -%}
 <span class="bigtag"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="0" y="0" width="5" height="5" rx="1.2"/><rect x="7" y="0" width="5" height="5" rx="1.2"/><rect x="0" y="7" width="5" height="5" rx="1.2"/><rect x="7" y="7" width="5" height="5" rx="1.2" class="on"/></svg>{{ title }}</span>
 {%- endmacro %}
