@@ -256,7 +256,10 @@ html[data-motion="off"] *,html[data-motion="off"] *::before,html[data-motion="of
 @media(max-width:760px){
   :root{--gutter:16px;--top:56px}
   body{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
-  .top-in{gap:10px}
+  .top-in{gap:8px}
+  .top-right{gap:5px;min-width:0}
+  .top-right .account{flex:none}
+  .account button{white-space:nowrap;padding:0 9px}
   .nav,.top-right .btn-new,.me-chip .name{display:none}
   .icon-btn{width:36px;height:36px}
   .account{height:36px}
@@ -308,3 +311,9 @@ html[data-motion="off"] *,html[data-motion="off"] *::before,html[data-motion="of
 .award-debut{position:absolute;right:-6px;top:-6px;font-size:22px;box-shadow:0 4px 12px rgba(27,29,42,.2)}
 .award-tier.gold,.case-label.gold{background:linear-gradient(135deg,#F2B700,#FFE07A 50%,#F2B700);box-shadow:0 0 0 2px var(--ink)}
 .award-kind b{color:#9C6B3F}
+
+@media(max-width:380px){
+  :root{--top:96px}
+  .top-in{height:auto;min-height:var(--top);padding-top:8px;padding-bottom:8px;flex-wrap:wrap;gap:6px}
+  .top-right{flex-basis:100%;justify-content:flex-end}
+}

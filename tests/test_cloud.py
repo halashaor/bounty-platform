@@ -1,4 +1,8 @@
 import os
+import hashlib
+import sqlite3
+from pathlib import Path
+from importlib.resources import files
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -10,13 +14,20 @@ from wsgi import create_cloud_app
 class CloudTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.env = patch.dict(os.environ, BOUNTY_DATA_DIR=self.temp.name,
-                              BOUNTY_DOMAIN='bounty.example.test', BOUNTY_INVITE_CODE='test-invite-123456789')
+        accounts = Path(self.temp.name) / 'accounts.sqlite'
+        with sqlite3.connect(accounts) as db:
+            db.executescript(files('team_accounts').joinpath('schema.sql').read_text())
+            db.execute("INSERT INTO account_metadata VALUES('initialized','test')")
+            db.execute("INSERT INTO account_invites VALUES('member',?,1,0,NULL,'test',NULL)",
+                       (hashlib.sha256(b'test-invite-123456789').hexdigest(),))
+        self.env = patch.dict(os.environ, BOUNTY_DATA_DIR=str(Path(self.temp.name) / 'business'),
+                              BOUNTY_DOMAIN='mission.example.test', TEAM_ACCOUNTS_DATABASE=str(accounts),
+                              TEAM_SESSION_COOKIE_DOMAIN='example.test')
         self.env.start()
         self.app = create_cloud_app()
         self.app.config['TESTING'] = True
         self.client = self.app.test_client()
-        self.base = 'https://bounty.example.test'
+        self.base = 'https://mission.example.test'
 
     def tearDown(self):
         self.env.stop()
@@ -33,10 +44,10 @@ class CloudTest(unittest.TestCase):
         response = self.client.get('/auth/login', base_url=self.base)
         self.assertNotIn('demo12345', response.text)
         cookie = response.headers['Set-Cookie']
-        self.assertIn('__Host-bounty_session=', cookie)
+        self.assertIn('__Host-mission_forms=', cookie)
         self.assertIn('Secure;', cookie)
         self.assertIn('HttpOnly;', cookie)
-        self.assertIn('邀请码不正确', self.post('register').text)
+        self.assertIn('邀请码无效', self.post('register').text)
         with connect(self.app.config['DATABASE']) as db:
             self.assertEqual(db.execute('SELECT COUNT(*) FROM users').fetchone()[0], 0)
         self.assertEqual(self.post('register', 'test-invite-123456789').status_code, 302)

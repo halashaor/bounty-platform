@@ -73,11 +73,18 @@ def create_app(config=None):
             pass
         app.config['SECRET_KEY'] = secret_path.read_text()
     initialize(app.config['DATABASE'])
+    if not (app.config.get('TEAM_ACCOUNTS_DATABASE') or os.environ.get('TEAM_ACCOUNTS_DATABASE')):
+        with connect(app.config['DATABASE']) as db:
+            if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='app_settings'").fetchone() and db.execute("SELECT 1 FROM app_settings WHERE key='shared_accounts'").fetchone():
+                raise RuntimeError('此数据目录使用团队统一账号，请配置 TEAM_ACCOUNTS_DATABASE。')
 
     @app.get('/healthz')
     def health():
         with connect(app.config['DATABASE']) as db:
             db.execute('SELECT 1 FROM users LIMIT 1').fetchone()
+        if app.extensions.get('team_accounts'):
+            with app.extensions['team_accounts'].connection() as accounts:
+                accounts.execute('SELECT 1 FROM accounts LIMIT 1').fetchone()
         return jsonify(status='ok')
 
     @app.after_request
@@ -135,14 +142,13 @@ def create_app(config=None):
 
     @app.context_processor
     def context():
-        extra = dict(current_time=now(), mailbox=0, me=None, my_turn=0, play_new=0, my_title=None, is_admin=False)
+        extra = dict(current_time=now(), mailbox=0, me=None, my_turn=0, play_new=0, my_title=None)
         if g.get('user'):
             with database() as db:
                 # 信箱里装两种东西：还没拆的勋章，和刚解锁、还没庆祝过的称号
                 extra['mailbox'] = db.execute('SELECT COUNT(*) FROM honors WHERE user_id=? AND seen_at IS NULL',
                                               (g.user['id'],)).fetchone()[0] + len(titles.unseen(db, g.user['id']))
                 extra['play_new'] = unlocks.new_count(db, g.user['id'])
-                extra['is_admin'] = tags.is_admin(db, g.user['id'])
                 extra['my_title'] = titles.chosen_title(db, g.user['id'])
                 extra['me'] = progress.person_progress(db, g.user['id'])
                 # 轮到我的事：我在做的、等我验收的
@@ -345,67 +351,50 @@ def create_app(config=None):
             projects = [row['project'] for row in db.execute('SELECT DISTINCT project FROM tasks WHERE project IS NOT NULL ORDER BY project')]
         return render_template('new.html', team_tags=team_tags, projects=projects, picked=request.form.getlist('tags'))
 
-    # ---------------- 管理员：团队的标签表、谁是管理员 ----------------
-    def admin_required(view):
-        @wraps(view)
-        def wrapped(*args, **kwargs):
-            with database() as db:
-                if not tags.is_admin(db, g.user['id']):
-                    abort(404)
-            return view(*args, **kwargs)
-        return login_required(wrapped)
-
-    @app.get('/admin/tags')
-    @admin_required
-    def admin_tags():
+    # ---------------- 团队共同维护标签 ----------------
+    @app.get('/tags')
+    @login_required
+    def team_tags():
         with database() as db:
             listing = tags.listing(db)
-            people = db.execute('SELECT name,is_admin FROM users ORDER BY is_admin DESC,id').fetchall()
             loose = [row['tag'] for row in db.execute('''SELECT DISTINCT x.tag FROM task_tags x JOIN tasks t ON t.id=x.task_id
                 WHERE t.status<>'done' AND x.tag NOT IN (SELECT name FROM org_tags) ORDER BY x.tag''')]
-        return render_template('admin_tags.html', listing=listing, people=people, loose=loose, note_limit=tags.NOTE_LIMIT)
+        return render_template('team_tags.html', listing=listing, loose=loose, note_limit=tags.NOTE_LIMIT)
 
-    def admin_action(action, message):
+    def tag_action(action, message):
         try:
             result = action()
             flash(message(result) if callable(message) else message, 'success')
         except InvalidAction as error:
             flash(str(error), 'error')
-        return redirect(url_for('admin_tags') + (request.form.get('anchor') or ''))
+        return redirect(url_for('team_tags') + (request.form.get('anchor') or ''))
 
-    @app.post('/admin/tags')
-    @admin_required
+    @app.post('/tags')
+    @login_required
     def add_tag():
-        return admin_action(lambda: tags.add(app.config['DATABASE'], g.user['id'], request.form.get('name', ''), request.form.get('note', '')),
+        return tag_action(lambda: tags.add(app.config['DATABASE'], g.user['id'], request.form.get('name', ''), request.form.get('note', '')),
                             lambda name: f'加上了「{name}」。')
 
-    @app.post('/admin/tags/update')
-    @admin_required
+    @app.post('/tags/update')
+    @login_required
     def update_tag():
         def done(result):
             name, merged = result
             return f'已经并进「{name}」。' if merged else f'「{name}」改好了。'
-        return admin_action(lambda: tags.update(app.config['DATABASE'], g.user['id'], request.form.get('name', ''),
+        return tag_action(lambda: tags.update(app.config['DATABASE'], g.user['id'], request.form.get('name', ''),
                                                 request.form.get('note', ''), request.form.get('rename', '')), done)
 
-    @app.post('/admin/tags/move')
-    @admin_required
+    @app.post('/tags/move')
+    @login_required
     def move_tag():
-        return admin_action(lambda: tags.move(app.config['DATABASE'], g.user['id'], request.form.get('name', ''),
+        return tag_action(lambda: tags.move(app.config['DATABASE'], g.user['id'], request.form.get('name', ''),
                                               1 if request.form.get('step') == 'down' else -1), '顺序调好了。')
 
-    @app.post('/admin/tags/delete')
-    @admin_required
+    @app.post('/tags/delete')
+    @login_required
     def delete_tag():
         name = request.form.get('name', '')
-        return admin_action(lambda: tags.remove(app.config['DATABASE'], g.user['id'], name), f'「{name}」从表里拿掉了。')
-
-    @app.post('/admin/admins')
-    @admin_required
-    def set_admin():
-        name, on = request.form.get('name', ''), request.form.get('on') == '1'
-        return admin_action(lambda: tags.set_admin(app.config['DATABASE'], g.user['id'], name, on),
-                            f'{name} {"成了" if on else "不再是"}管理员。')
+        return tag_action(lambda: tags.remove(app.config['DATABASE'], g.user['id'], name), f'「{name}」从表里拿掉了。')
 
     @app.get('/honors')
     @login_required
@@ -822,6 +811,9 @@ def create_app(config=None):
     def error_page(error):
         return render_template('error.html', error=error), error.code
 
+    if app.config.get('TEAM_ACCOUNTS_DATABASE') or os.environ.get('TEAM_ACCOUNTS_DATABASE'):
+        from bounty.team_auth import install
+        install(app, app.config.get('TEAM_ACCOUNTS_DATABASE') or os.environ['TEAM_ACCOUNTS_DATABASE'])
     return app
 
 

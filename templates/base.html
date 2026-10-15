@@ -43,7 +43,7 @@
       </nav>
       <div class="top-right">
         <a class="btn btn-new" href="{{ url_for('new_task') }}">{{ icon('plus') }}发布任务</a>
-        {% if is_admin %}<a class="icon-btn" href="{{ url_for('admin_tags') }}" title="标签管理" aria-label="标签管理" {% if here == 'admin_tags' %}aria-pressed="true"{% endif %}>{{ icon('tag') }}</a>{% endif %}
+        <a class="icon-btn" href="{{ url_for('team_tags') }}" title="标签管理" aria-label="标签管理" {% if here == 'team_tags' %}aria-pressed="true"{% endif %}>{{ icon('tag') }}</a>
         <a class="icon-btn mailbox{{ ' has-mail' if mailbox }}" href="{{ url_for('honors') }}" title="信箱" aria-label="信箱{{ '：' ~ mailbox ~ ' 枚新勋章待领取' if mailbox else '' }}">{{ icon('mail') }}{% if mailbox %}<b>{{ mailbox }}</b>{% endif %}</a>
         <button type="button" class="icon-btn" data-sound-toggle aria-pressed="false" title="音效：关" aria-label="音效">{{ icon('mute') }}</button>
         <button type="button" class="icon-btn" data-motion-toggle aria-pressed="false" title="动效：开" aria-label="动效">{{ icon('motion') }}</button>

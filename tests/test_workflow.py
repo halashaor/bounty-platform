@@ -722,17 +722,14 @@ class WorkflowTest(unittest.TestCase):
         self.assertEqual(response.status_code, status, response.text)
         return response.json
 
-    def test_team_tag_list_is_kept_by_admins(self):
+    def test_team_tag_list_is_shared_by_members(self):
         owner, worker, other = self.clients
-        # 不是管理员：看不到管理页，也改不了
-        self.assertEqual(owner.get('/admin/tags').status_code, 404)
-        self.assertEqual(self.post(owner, '/admin/tags', {'name': '图论'}).status_code, 404)
-        tags.grant(self.path, 'owner')
-        self.assertIn('团队的标签表', owner.get('/admin/tags').text)
-        self.assertIn('标签管理', owner.get('/').text)
-        self.assertNotIn('标签管理', worker.get('/').text)
-        self.assertIn('加上了「图论」', self.post(owner, '/admin/tags', {'name': '图论', 'note': '图算法的讲题和实验'}).text)
-        self.assertIn('已经在表里', self.post(owner, '/admin/tags', {'name': '图论'}).text)
+        self.assertEqual(owner.get('/tags').status_code, 200)
+        self.assertIn('团队的标签表', owner.get('/tags').text)
+        self.assertIn('标签管理', worker.get('/').text)
+        self.assertEqual(self.app.test_client().get('/tags').status_code, 302)
+        self.assertIn('加上了「图论」', self.post(owner, '/tags', {'name': '图论', 'note': '图算法的讲题和实验'}).text)
+        self.assertIn('已经在表里', self.post(owner, '/tags', {'name': '图论'}).text)
         # 发布者从表里勾，也可以写新的；新的自动加进表
         page = self.post(owner, '/tasks/new', {**self.data, 'category': '', 'tags': ['图论', '数据'], 'new_tags': '线段树',
                                                'title': '讲一次线段树'})
@@ -746,29 +743,26 @@ class WorkflowTest(unittest.TestCase):
         self.assertIn('图算法的讲题和实验', worker.get('/').text)    # 方向卡上能看到说明
         set_interests(self.path, 2, '线段树 图论')
         # 合并：线段树并进图论，任务和大家选的方向一起跟过去
-        self.assertIn('已经并进「图论」', self.post(owner, '/admin/tags/update', {'name': '线段树', 'note': '', 'rename': '图论'}).text)
+        self.assertIn('已经并进「图论」', self.post(owner, '/tags/update', {'name': '线段树', 'note': '', 'rename': '图论'}).text)
         with connect(self.path) as db:
             self.assertEqual(discover.tags_by_task(db, [task_id])[task_id], ['图论', '数据'])
             self.assertEqual([row[0] for row in db.execute('SELECT tag FROM interests WHERE user_id=2')], ['图论'])
             self.assertNotIn('线段树', tags.names(db))
         # 改名、排序、拿掉
-        self.post(owner, '/admin/tags/update', {'name': '杂务', 'note': '跑腿', 'rename': '后勤'})
-        self.post(owner, '/admin/tags/move', {'name': '后勤', 'step': 'up'})
+        self.post(owner, '/tags/update', {'name': '杂务', 'note': '跑腿', 'rename': '后勤'})
+        self.post(owner, '/tags/move', {'name': '后勤', 'step': 'up'})
         with connect(self.path) as db:
             order = tags.names(db)
             self.assertEqual(order.index('后勤') + 1, order.index('讲解'))
-        self.post(owner, '/admin/tags/delete', {'name': '图论'})
+        self.post(owner, '/tags/delete', {'name': '图论'})
         with connect(self.path) as db:
             self.assertNotIn('图论', tags.names(db))
             self.assertEqual(db.execute('SELECT COUNT(*) FROM interests WHERE user_id=2').fetchone()[0], 0)
             self.assertEqual(discover.tags_by_task(db, [task_id])[task_id], ['图论', '数据'])   # 已有的任务不受影响
-        self.assertIn('图论', owner.get('/admin/tags').text)   # 出现在"挂在任务上但不在表里"
-        # 管理员可以再设别人；最后一个管理员不能自己退
-        self.assertIn('至少要留一个管理员', self.post(owner, '/admin/admins', {'name': 'owner', 'on': '0'}).text)
-        self.post(owner, '/admin/admins', {'name': 'other', 'on': '1'})
-        self.assertEqual(other.get('/admin/tags').status_code, 200)
-        with self.assertRaises(InvalidAction):
-            tags.grant(self.path, '不存在的人')
+        self.assertIn('图论', owner.get('/tags').text)   # 出现在"挂在任务上但不在表里"
+        self.assertEqual(self.post(owner, '/admin/admins', {'name': 'owner', 'on': '1'}).status_code, 404)
+        self.assertNotIn('管理员', owner.get('/tags').text)
+        self.assertIn('加上了「团队共建」', self.post(worker, '/tags', {'name': '团队共建'}).text)
 
     def test_existing_tags_become_the_team_list_on_upgrade(self):
         legacy = str(Path(self.temp.name) / 'old-tags.sqlite3')

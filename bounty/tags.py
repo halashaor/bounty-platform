@@ -1,5 +1,5 @@
-"""团队的标签表：一个组织自己定"我们做的都是什么"。管理员维护（加、写说明、排序、改名或合并、删除），
-发布者发任务时从表里挑，表里没有的也可以写一个新的，它会自动加进来，之后管理员可以整理。
+"""团队的标签表：一个组织自己定"我们做的都是什么"。团队成员维护（加、写说明、排序、改名或合并、删除），
+发布者发任务时从表里挑，表里没有的也可以写一个新的，它会自动加进来，之后团队成员可以整理。
 大家选「想做的方向」时只能从这张表里点，不用自己想该输入什么。"""
 from .db import connect
 from .service import InvalidAction, now, parse_tags
@@ -20,14 +20,9 @@ def names(db):
     return [row['name'] for row in db.execute('SELECT name FROM org_tags ORDER BY position,name')]
 
 
-def is_admin(db, user_id):
-    row = db.execute('SELECT is_admin FROM users WHERE id=?', (user_id,)).fetchone()
-    return bool(row and row['is_admin'])
-
-
-def _admin(db, user_id):
-    if not is_admin(db, user_id):
-        raise InvalidAction('只有管理员能改团队的标签表。')
+def _member(db, user_id):
+    if not db.execute('SELECT 1 FROM users WHERE id=?', (user_id,)).fetchone():
+        raise InvalidAction('请先登录。')
 
 
 def _one(raw):
@@ -46,7 +41,7 @@ def _note(raw):
 
 def add(path, user_id, name, note=''):
     with connect(path, write=True) as db:
-        _admin(db, user_id)
+        _member(db, user_id)
         name, note = _one(name), _note(note)
         if db.execute('SELECT 1 FROM org_tags WHERE name=?', (name,)).fetchone():
             raise InvalidAction(f'「{name}」已经在表里了。')
@@ -59,7 +54,7 @@ def add(path, user_id, name, note=''):
 def update(path, user_id, name, note='', rename=''):
     """Change the note; a new name renames the tag everywhere, or merges it into an existing one."""
     with connect(path, write=True) as db:
-        _admin(db, user_id)
+        _member(db, user_id)
         if not db.execute('SELECT 1 FROM org_tags WHERE name=?', (name,)).fetchone():
             raise InvalidAction('这个标签不在表里。')
         note = _note(note)
@@ -83,7 +78,7 @@ def update(path, user_id, name, note='', rename=''):
 def move(path, user_id, name, step):
     """Swap with the neighbour above (step -1) or below (step 1)."""
     with connect(path, write=True) as db:
-        _admin(db, user_id)
+        _member(db, user_id)
         order = names(db)
         if name not in order:
             raise InvalidAction('这个标签不在表里。')
@@ -97,26 +92,7 @@ def move(path, user_id, name, step):
 def remove(path, user_id, name):
     """Take a tag off the list. Tasks that already carry it keep it (it is history); nobody can pick it as a direction any more."""
     with connect(path, write=True) as db:
-        _admin(db, user_id)
+        _member(db, user_id)
         if not db.execute('DELETE FROM org_tags WHERE name=?', (name,)).rowcount:
             raise InvalidAction('这个标签不在表里。')
         db.execute('DELETE FROM interests WHERE tag=?', (name,))
-
-
-def set_admin(path, user_id, name, on):
-    """Grant or revoke admin from the web page; the last admin cannot step down."""
-    with connect(path, write=True) as db:
-        _admin(db, user_id)
-        target = db.execute('SELECT id FROM users WHERE name=?', (name,)).fetchone()
-        if not target:
-            raise InvalidAction('没有这个用户。')
-        if not on and db.execute('SELECT COUNT(*) FROM users WHERE is_admin=1').fetchone()[0] <= 1 and is_admin(db, target['id']):
-            raise InvalidAction('至少要留一个管理员。')
-        db.execute('UPDATE users SET is_admin=? WHERE id=?', (int(on), target['id']))
-
-
-def grant(path, name, on=True):
-    """For manage.py: make someone an admin (or not) without logging in."""
-    with connect(path, write=True) as db:
-        if not db.execute('UPDATE users SET is_admin=? WHERE name=?', (int(on), name)).rowcount:
-            raise InvalidAction(f'没有叫「{name}」的用户，先在网页上注册。')

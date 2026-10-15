@@ -2,19 +2,19 @@
 {% from 'components/icon.html' import icon %}
 {% from 'components/ui.html' import csrf %}
 {% block title %}标签管理 · 結 YUI{% endblock %}
-{% block body_class %}page-admin{% endblock %}
+{% block body_class %}page-tags{% endblock %}
 {% block content %}
-<div class="wrap admin">
-  <header class="admin-head">
-    <span class="case-label">管理员</span>
+<div class="wrap team-tags">
+  <header class="tags-head">
+    <span class="case-label">团队共建</span>
     <h1>团队的标签表</h1>
     <p>这张表就是团队「做的都是什么」。发布任务时大家从这里挑标签，选「想做的方向」时也只能从这里点，不用自己想该写什么。
       给每个标签写一句说明，大家一看就知道它管哪些事。发布者写的新标签会自动加到最后，在这里整理就行。</p>
   </header>
 
-  <section class="panel admin-add">
+  <section class="panel tags-add">
     <h2 class="sec">加一个标签</h2>
-    <form method="post" action="{{ url_for('add_tag') }}" class="admin-row-form">
+    <form method="post" action="{{ url_for('add_tag') }}" class="tag-row-form">
       {{ csrf() }}
       <input name="name" required maxlength="16" placeholder="标签名，例如：图论" aria-label="标签名">
       <input name="note" maxlength="{{ note_limit }}" placeholder="一句说明，例如：图算法相关的讲题和实验" aria-label="说明">
@@ -22,7 +22,7 @@
     </form>
   </section>
 
-  <section class="panel admin-list" aria-labelledby="tag-list-title">
+  <section class="panel tags-list" aria-labelledby="tag-list-title">
     <h2 class="sec" id="tag-list-title">现在的标签<span>{{ listing|length }}</span><small>按这里的顺序出现在「发现」的方向条和发布页上</small></h2>
     <ol class="tag-rows">
       {% for tag in listing %}
@@ -52,7 +52,7 @@
   </section>
 
   {% if loose %}
-  <section class="panel admin-loose">
+  <section class="panel tags-loose">
     <h2 class="sec">挂在任务上、但不在表里的标签<small>可能是之前拿掉的，需要的话加回来</small></h2>
     <div class="chips">
       {% for name in loose %}
@@ -62,16 +62,6 @@
   </section>
   {% endif %}
 
-  <section class="panel admin-people" aria-labelledby="admins-title">
-    <h2 class="sec" id="admins-title">管理员<small>管理员能改这张表。部署的人也可以在服务器上运行 <code>python manage.py --data-dir 数据目录 admin 用户名</code></small></h2>
-    <ul class="people">
-      {% for person in people %}
-      <li><span>{{ person.name }}{% if person.is_admin %}<i class="admin-badge">管理员</i>{% endif %}</span>
-        <form method="post" action="{{ url_for('set_admin') }}">{{ csrf() }}<input type="hidden" name="name" value="{{ person.name }}"><input type="hidden" name="on" value="{{ '0' if person.is_admin else '1' }}"><input type="hidden" name="anchor" value="#admins-title">
-          <button class="btn btn-ghost btn-sm">{{ '取消管理员' if person.is_admin else '设为管理员' }}</button></form></li>
-      {% endfor %}
-    </ul>
-  </section>
 </div>
 <script>
   // 拿掉标签前确认一下

@@ -97,7 +97,7 @@ def create_task(path, user_id, data, tz=None):
             VALUES (?,?,?,?,?,?,?,?,?,?)''',
             (title, description, tags[0], project or None, importance, urgency, deadline, requirements, user_id, now()))
         db.executemany('INSERT INTO task_tags (task_id,tag) VALUES (?,?)', [(cursor.lastrowid, tag) for tag in tags])
-        # 发布者写了表里没有的标签：加进团队的标签表末尾，之后管理员可以写说明、合并或删掉
+        # 发布者写了表里没有的标签：加进团队的标签表末尾，之后团队成员可以写说明、合并或删掉
         for tag in tags:
             db.execute('''INSERT OR IGNORE INTO org_tags (name,position,created_by,created_at)
                 SELECT ?,COALESCE(MAX(position),0)+1,?,? FROM org_tags''', (tag, user_id, now()))

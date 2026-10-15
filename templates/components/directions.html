@@ -32,14 +32,14 @@
 {%- endmacro %}
 
 {# 发现页最上面的方向条：每次进来都能重新点，点了立刻重排「按你选的方向」那一排；不用 JS 时就是一个普通表单。
-   方向就是团队的标签表（管理员维护），大家只管点，不用自己想该写什么。 #}
+   方向就是团队的标签表（团队成员维护），大家只管点，不用自己想该写什么。 #}
 {% macro direction_bar(options, interests, shown=11) -%}
 <section class="dirs panel" id="dirs" aria-labelledby="dirs-title">
   <form method="post" action="{{ url_for('interests') }}" data-dirs>
     <input type="hidden" name="csrf" value="{{ session.csrf }}">
     <header class="dirs-head">
       <h2 id="dirs-title">今天想往哪儿使劲？</h2>
-      <p>点几个方向，下面那排马上换；每次来都可以重新点。{% if is_admin %} <a class="dirs-admin" href="{{ url_for('admin_tags') }}">整理标签表 →</a>{% endif %}</p>
+      <p>点几个方向，下面那排马上换；每次来都可以重新点。 <a class="dirs-admin" href="{{ url_for('team_tags') }}">整理标签表 →</a></p>
       <div class="dirs-side">
         <span class="dirs-count" aria-live="polite">已选 <b class="num" data-dirs-count>{{ interests|length }}</b><span class="num"> / {{ max_interests }}</span></span>
         <button type="button" class="btn btn-ghost btn-sm" data-dirs-clear {% if not interests %}hidden{% endif %}>清空</button>

@@ -32,12 +32,15 @@
       <h2>{{ '欢迎回来' if mode == 'login' else '加入团队' }}</h2>
       {% if rate_limited %}<p role="alert">尝试次数过多，请稍后再试。</p>{% endif %}
       {% for category, message in get_flashed_messages(with_categories=true) %}<p class="notice {{ category }}" role="alert" style="animation:none">{{ message }}</p>{% endfor %}
-      <label class="field"><span>用户名</span><input name="name" required maxlength="40" autocomplete="username" value="{{ request.form.get('name', '') }}"></label>
+      <label class="field"><span>用户名</span><input name="name" required maxlength="{{ 24 if config.TEAM_AUTH else 40 }}" autocomplete="username" value="{{ request.form.get('name', '') }}"></label>
       <label class="field"><span>密码<small>8–128 个字符</small></span><input type="password" name="password" required minlength="8" maxlength="128" autocomplete="{{ 'current-password' if mode == 'login' else 'new-password' }}"></label>
-      {% if mode == 'register' and config.INVITE_CODE %}<label class="field"><span>团队邀请码</span><input name="invite" required autocomplete="off" maxlength="128"></label>{% endif %}
+      {% if mode == 'register' and (config.TEAM_AUTH or config.INVITE_CODE) %}<label class="field"><span>团队邀请码</span><input name="invite" required autocomplete="off"></label>{% endif %}
+      {% if config.TEAM_AUTH %}<p class="switch">使用团队统一账号，与计算平台共用注册和登录。</p>{% endif %}
+      {% if rate_limited %}<p class="notice error" role="alert">请求过于频繁，请稍后重试。</p>{% endif %}
       <button class="btn btn-big">{{ '登录' if mode == 'login' else '注册并进入' }}</button>
       <p class="switch">{% if mode == 'login' %}第一次来？<a href="{{ url_for('auth', mode='register') }}">注册一个账号</a>{% else %}已经有账号？<a href="{{ url_for('auth', mode='login') }}">直接登录</a>{% endif %}</p>
-      {% if mode == 'login' and config.SHOW_DEMO_LOGIN %}<p class="demo">演示数据库的账号：发布者、认领人、陈默、王瑶……密码都是 demo12345。</p>{% endif %}
+      {% if mode == 'login' and not config.TEAM_AUTH and config.SHOW_DEMO_LOGIN %}<p class="demo">演示数据库的账号：发布者、认领人、陈默、王瑶……密码都是 demo12345。</p>{% endif %}
+
     </form>
   </section>
 </div>

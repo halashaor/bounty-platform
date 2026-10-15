@@ -45,7 +45,7 @@ PRAISE = {'整理上周周赛的错题': '写得很清楚', '补全 50 道题的
 # 已经拆开看过的勋章（其余的留在信箱里，登录后能看到颁奖）
 SEEN = ('整理上周周赛的错题', '补全 50 道题的样例解释', '连夜改好报名表')
 INTERESTS = {'认领人': '图论 PyTorch', '王瑶': '数据 论文'}
-# 团队的标签表（管理员整理过的样子）：顺序就是方向条和发布页上的顺序
+# 团队的标签表（团队成员整理过的样子）：顺序就是方向条和发布页上的顺序
 TEAM_TAGS = (('数据', '造数据、清洗、标注、整理题目'), ('讲解', '讲题、写题解、带新人'), ('实验', '跑实验、调参、消融'),
              ('论文', '读论文、复现、组会分享'), ('代码', '写工具、修评测机、加测试'), ('题库', '题目整理、知识点标签、检索'),
              ('图论', '图算法的讲题和实验'), ('PyTorch', '模型训练和 GPU 上的活'), ('杂务', '订机房、做海报、改表格'))
@@ -70,7 +70,6 @@ def seed_demo(path):
             raise ValueError('演示数据只允许导入空数据库，请使用新的 --data-dir。')
         db.executemany('INSERT INTO users(name,password) VALUES (?,?)',
                        [(name, generate_password_hash(DEMO_PASSWORD)) for name in DEMO_USERS])
-        db.execute('UPDATE users SET is_admin=1 WHERE name=?', (ADMIN,))
         db.execute('DELETE FROM org_tags')
         db.executemany("INSERT INTO org_tags (name,note,position,created_by,created_at) VALUES (?,?,?,?,'2026-01-01T00:00:00+00:00')",
                        [(name, note, i, U[ADMIN]) for i, (name, note) in enumerate(TEAM_TAGS, 1)])

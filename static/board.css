@@ -1180,14 +1180,14 @@ a.mode:active{transform:scale(.98)}
 .field-note{font-size:11.5px;color:var(--faint)}
 .dirs-admin{margin-left:6px;font-weight:800;color:var(--blue-text);white-space:nowrap}
 
-/* ================= 管理员：标签表 ================= */
-.admin{display:grid;gap:16px;padding-top:26px;padding-bottom:80px;max-width:1080px}
-.admin-head h1{margin-top:10px;font-size:30px}
-.admin-head p{margin-top:8px;max-width:46em;color:var(--sub)}
-.admin .panel{padding:22px 24px}
-.admin .sec{margin-bottom:14px;flex-wrap:wrap}
-.admin-row-form{display:grid;grid-template-columns:200px minmax(0,1fr) auto;gap:10px}
-.admin-row-form input,.tag-edit input{height:40px!important}
+/* ================= 团队标签表 ================= */
+.team-tags{display:grid;gap:16px;padding-top:26px;padding-bottom:80px;max-width:1080px}
+.tags-head h1{margin-top:10px;font-size:30px}
+.tags-head p{margin-top:8px;max-width:46em;color:var(--sub)}
+.team-tags .panel{padding:22px 24px}
+.team-tags .sec{margin-bottom:14px;flex-wrap:wrap}
+.tag-row-form{display:grid;grid-template-columns:200px minmax(0,1fr) auto;gap:10px}
+.tag-row-form input,.tag-edit input{height:40px!important}
 .tag-rows{display:grid;gap:8px}
 .tag-row{display:grid;grid-template-columns:28px minmax(0,1fr) auto;grid-template-areas:"pos edit tools" ". use use";gap:4px 12px;align-items:center;padding:10px 12px;border-radius:14px;background:var(--ground);scroll-margin-top:calc(var(--top) + 20px)}
 .tag-row:target{box-shadow:0 0 0 2px var(--yellow)}
@@ -1200,16 +1200,12 @@ a.mode:active{transform:scale(.98)}
 .tag-tools .icon-btn svg{width:16px;height:16px;transform:rotate(90deg)}
 .tag-tools .icon-btn.down svg{transform:rotate(-90deg)}
 .tag-tools form:last-child .icon-btn svg{transform:none}
-.admin-loose .chips form{display:contents}
-.people{display:grid;gap:6px}
-.people li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border-radius:12px;background:var(--ground);font-weight:700}
-.admin-badge{margin-left:8px;padding:0 8px;border-radius:999px;background:var(--ink);color:#fff;font-size:11px;font-style:normal;line-height:20px}
-.admin code{padding:1px 6px;border-radius:6px;background:var(--ground);font-size:12px}
+.tags-loose .chips form{display:contents}
 @media(max-width:760px){
-  .admin-row-form{grid-template-columns:minmax(0,1fr)}
+  .tag-row-form{grid-template-columns:minmax(0,1fr)}
   .tag-row{grid-template-columns:24px minmax(0,1fr);grid-template-areas:"pos edit" ". use" ". tools"}
   .tag-edit{grid-template-columns:minmax(0,1fr)}
-  .admin .panel{padding:18px 16px}
+  .team-tags .panel{padding:18px 16px}
 }
 @media(max-width:760px){
   .auth-art .compose{width:min(260px,62%);opacity:.5}

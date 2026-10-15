@@ -7,9 +7,11 @@ services:
     env_file: .env
     volumes:
       - ./data:/data
+      - ${TEAM_ACCOUNTS_DIR:?set TEAM_ACCOUNTS_DIR}:/accounts
     networks:
       proxy:
         aliases: [bounty-platform]
+    group_add: ["${TEAM_ACCOUNTS_GID:?set TEAM_ACCOUNTS_GID}"]
     mem_limit: 256m
     cpus: 0.5
     pids_limit: 64

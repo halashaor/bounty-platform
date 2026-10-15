@@ -1,8 +1,7 @@
-"""Cloud entrypoint. One trusted Caddy proxy; independent persistent SQLite data."""
+"""Production entry point using the team's independent shared account store."""
 import hashlib
 import os
 import time
-
 from flask import request, render_template
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.exceptions import SecurityError
@@ -12,15 +11,12 @@ from bounty.db import connect
 
 def create_cloud_app():
     domain = os.environ['BOUNTY_DOMAIN']
-    invite = os.environ['BOUNTY_INVITE_CODE']
-    if not domain or len(invite) < 16:
-        raise RuntimeError('Set BOUNTY_DOMAIN and a random BOUNTY_INVITE_CODE of at least 16 characters.')
+    accounts = os.environ['TEAM_ACCOUNTS_DATABASE']
     app = create_app(dict(
-        SHOW_DEMO_LOGIN=False, INVITE_CODE=invite,
-        SESSION_COOKIE_NAME='__Host-bounty_session', SESSION_COOKIE_SECURE=True,
+        TEAM_ACCOUNTS_DATABASE=accounts,
+        SESSION_COOKIE_NAME='__Host-mission_forms', SESSION_COOKIE_SECURE=True,
         TRUSTED_HOSTS=[domain, 'localhost', '127.0.0.1'],
     ))
-    # The service has no public port: only Caddy can supply these headers.
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
     @app.errorhandler(SecurityError)

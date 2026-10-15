@@ -13,7 +13,7 @@ TASK_TABLE = '''CREATE TABLE IF NOT EXISTS tasks (
  status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','active','review','done')),
  created_at TEXT NOT NULL
 )'''
-# 全新的库里先放的标签：一句说明让大家知道这个方向做什么；管理员可以随时改、删、加
+# 全新的库里先放的标签：一句说明让大家知道这个方向做什么；团队成员可以随时改、删、加
 STARTER_TAGS = (('实验', '跑实验、调参、消融'), ('数据', '造数据、清洗、标注'), ('论文', '读论文、复现、组会分享'),
                 ('代码', '写工具、修 bug、加测试'), ('讲解', '讲题、写题解、带新人'), ('杂务', '订场地、做海报、跑腿'))
 SCHEMA = '''
@@ -172,8 +172,8 @@ def initialize(path):
         user_columns = {row['name'] for row in db.execute('PRAGMA table_info(users)')}
         if 'title_key' not in user_columns:
             db.execute('ALTER TABLE users ADD COLUMN title_key TEXT')
-        if 'is_admin' not in user_columns:   # 管理员：维护团队的标签表（用 manage.py admin 设置）
-            db.execute('ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0')
+        if 'is_admin' in user_columns:
+            db.execute('ALTER TABLE users DROP COLUMN is_admin')
         if 'play_seen' not in user_columns:   # 上次进游戏角时已经解锁了哪些：多出来的在导航上标「新」
             db.execute("ALTER TABLE users ADD COLUMN play_seen TEXT NOT NULL DEFAULT ''")
         if 'notes_seen_at' not in user_columns:
@@ -188,7 +188,7 @@ def initialize(path):
         # Older tasks had one fixed category; it becomes their first tag so search and recommendations keep working.
         db.execute('INSERT OR IGNORE INTO task_tags (task_id,tag) SELECT id,category FROM tasks WHERE id NOT IN (SELECT task_id FROM task_tags)')
         if new_tag_table:
-            # 团队标签表第一次出现：已经在用的标签都收进来；全新的库先放几个起步标签，管理员之后随意改
+            # 团队标签表第一次出现：已经在用的标签都收进来；全新的库先放几个起步标签，团队成员之后随意改
             stamp = "strftime('%Y-%m-%dT%H:%M:%S+00:00','now')"
             db.execute(f'''INSERT OR IGNORE INTO org_tags (name,position,created_at)
                 SELECT tag,ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC,tag),{stamp} FROM

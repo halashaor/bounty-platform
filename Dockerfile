@@ -3,7 +3,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 BOUNTY_DATA_DIR=/data
 WORKDIR /app
 COPY requirements*.txt ./
 COPY wheels/ /wheels/
-RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements-cloud.txt && rm -rf /wheels
+RUN sed 's|^team-accounts @ .*|team-accounts==1.0.0|' requirements-cloud.txt > requirements-offline.txt \
+    && pip install --no-cache-dir --no-index --find-links=/wheels -r requirements-offline.txt \
+    && rm -rf /wheels requirements-offline.txt
 COPY app.py run.py manage.py wsgi.py ./
 COPY bounty/ ./bounty/
 COPY templates/ ./templates/

@@ -1,2 +1,3 @@
 -r requirements.txt
 gunicorn==26.2.0
+team-accounts @ git+https://github.com/Jarv1sP/stargate.git@0e883682b4476c27c131f06484b8d08a7fa1e9f3#subdirectory=accounts
