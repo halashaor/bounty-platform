@@ -48,8 +48,9 @@
 {% macro task_card(task, tags, earned, i=0) -%}
 {%- set key = medal_key(task) -%}
 {%- set wants = task.status == 'open' and key not in earned -%}
-<article class="card{{ ' done' if task.status == 'done' }}{{ ' wants' if wants }}" data-task="{{ task.id }}" style="--i:{{ i }}">
+<article class="card{{ ' done' if task.status == 'done' }}{{ ' wants' if wants }}{{ ' team-task' if task.kind == 'team' }}" data-task="{{ task.id }}" style="--i:{{ i }};--hue:{{ medals[key].hue }}">
   <a class="cover" href="{{ url_for('detail', task_id=task.id) }}" aria-label="{{ task.title }}"></a>
+  {% if task.kind == 'team' %}<div class="card-art">{{ wave_art(task.status, task.people or 0, task.team_size, '', 'xMaxYMax slice', true, 220, 220) }}{{ team_emblem('card-emblem', label='大任务') }}</div>{% endif %}
   <div class="card-top">{{ medal(key) }}{% if wants %}<span class="newtag">新勋章</span>{% endif %}{% set waited = cold_days(task) %}{% if waited %}<span class="coldtag" title="等了 {{ waited }} 天没人接，完成后经验 +20%">冷门 +20%</span>{% endif %}{{ due(task) }}</div>
   <h3>{% if task.kind == 'team' %}{{ big_tag('大任务 · ' ~ ('想要 ' ~ task.team_size ~ ' 人' if task.team_size else '人数不限')) }}{% elif task.big_title %}{{ big_tag(task.big_title) }}{% endif %}{{ task.title }}</h3>
   <p class="goal">{{ task.description or '大任务「' ~ task.big_title ~ '」拆出来的一份分工' }}</p>
@@ -58,14 +59,22 @@
 </article>
 {%- endmacro %}
 
-{# 几个点串在一条线上：大任务的小标记 #}
-{% macro crew_dots() -%}
-<svg class="crew-dots" viewBox="0 0 22 10" aria-hidden="true"><path d="M4 5H18"/><circle cx="11" cy="5" r="2.7"/><circle cx="18" cy="5" r="2.7"/><circle class="k" cx="4" cy="5" r="3.8"/></svg>
+{# 大任务的标志：墨色的天，一轮黄日从三排青海波后面升起来。外圈是白边，靠 CSS 的 clip-path 裁成圆。
+   mini 是小尺寸用的简化版（波里不画细圈） #}
+{% macro team_emblem(cls='', label=none, mini=false) -%}
+<svg class="team-emblem{{ ' mini' if mini }}{{ ' ' ~ cls if cls }}" viewBox="0 0 100 100" {% if label %}role="img" aria-label="{{ label }}"{% else %}aria-hidden="true"{% endif %}>
+<rect width="100" height="100" fill="#1B1D2A"/><circle cx="50" cy="{{ 40 if mini else 41 }}" r="{{ 19 if mini else 17 }}" fill="#F2B700"/>
+{%- for y, xs in ((64, (12, 50, 88)), (78, (31, 69)), (92, (12, 50, 88))) %}{% for x in xs -%}
+<circle cx="{{ x }}" cy="{{ y }}" r="19" fill="#fff" stroke="#1B1D2A" stroke-width="{{ 4.4 if mini else 2.8 }}"/>
+{%- if not mini %}<circle cx="{{ x }}" cy="{{ y }}" r="13" fill="none" stroke="#1B1D2A" stroke-width="2.4"/><circle cx="{{ x }}" cy="{{ y }}" r="7" fill="none" stroke="#1B1D2A" stroke-width="2.4"/>{% endif %}
+{%- endfor %}{% endfor -%}
+{%- if not mini %}<circle cx="50" cy="50" r="47" fill="none" stroke="#fff" stroke-width="6"/>{% endif -%}
+</svg>
 {%- endmacro %}
 
 {# 任务卡标题上的一行小字：大任务，或者这份分工属于哪个大任务 #}
 {% macro big_tag(title) -%}
-<span class="bigtag">{{ crew_dots() }}{{ title }}</span>
+<span class="bigtag">{{ team_emblem(mini=true) }}{{ title }}</span>
 {%- endmacro %}
 
 {% macro csrf() -%}<input type="hidden" name="csrf" value="{{ session.csrf }}">{%- endmacro %}

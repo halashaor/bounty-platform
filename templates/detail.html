@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% from 'components/icon.html' import icon %}
 {% from 'components/medal.html' import medal %}
-{% from 'components/ui.html' import ava, csrf %}
+{% from 'components/ui.html' import ava, csrf, team_emblem %}
 {% from 'components/team.html' import seats, crew_text, crew_art %}
 {% block title %}{{ task.title }} · 結 YUI{% endblock %}
 {% block body_class %}page-detail{% endblock %}
@@ -28,10 +28,10 @@
   {% endif %}
 
   <section class="qband" style="--hue:{{ hue }};--on:{{ '#1B1D2A' if hue in ('#F2B700', '#F39800', '#00AEE0') else '#fff' }}">
-    {% if team %}{{ crew_art(task, members|length, 'qband-crew', 'xMaxYMax meet', 200) }}{% else %}
+    {% if team %}{{ crew_art(task, members|length, 'qband-crew', 'xMaxYMax meet', true) }}{% else %}
     <svg class="pick-art" viewBox="0 0 400 180" preserveAspectRatio="xMaxYMid slice" aria-hidden="true"><path d="M300 180 360 40H400V180Z" fill="#fff"/><path d="M268 180 328 40" stroke="#1B1D2A" stroke-width="8" stroke-linecap="round"/><circle cx="236" cy="58" r="11" fill="#1B1D2A"/></svg>{% endif %}
     <div>
-      {% if team %}<span class="sticker team-sticker" style="--sticker:#1B1D2A"><i></i>大任务 · 好几个人一起做</span>{% endif %}
+      {% if team %}<div class="team-head">{{ team_emblem(label='大任务') }}<span><b>大任务</b><small>{{ crew_text(task, members) }}</small></span></div>{% endif %}
       {% if task.status == 'open' and new_kind and not owner %}<span class="sticker" style="--sticker:#F39800"><i></i>能解锁「{{ medals[key].name }}」</span>{% endif %}
       {% if is_cold(task) %}<span class="sticker" style="--sticker:#9C6B3F"><i></i>{% if task.status == 'open' %}等了 {{ cold_days(task) }} 天没人{{ '加入' if team else '接' }} · 经验 +20%{% else %}冷门任务 · 经验 +20%{% endif %}</span>{% endif %}
       <h1>{{ task.title }}</h1>

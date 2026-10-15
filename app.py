@@ -149,7 +149,7 @@ def create_app(config=None):
                                  task_xp=progress.task_xp, praise_options=PRAISE, due_label=due_label, tag_look=tag_look,
                                  max_interests=MAX_INTERESTS, local_now=lambda: datetime.now(g.tz), offer_xp=offer_xp,
                                  cold_days=cold_days, is_cold=is_cold, title_names=titles.BY_KEY,
-                                 block_data=blocks.page_data(), fan_art=teams.fan_art)
+                                 block_data=blocks.page_data(), wave_art=teams.wave_art)
 
     def page_url(**changes):
         """Same page, same filters, with a few changed; empty values drop out of the URL."""

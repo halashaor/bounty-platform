@@ -1,6 +1,7 @@
 {% from 'components/icon.html' import icon %}
 {% from 'components/medal.html' import medal %}
 {% from 'components/ui.html' import ava, csrf, big_tag %}
+{% from 'components/team.html' import crew_art, team_badge %}
 
 {# 色卡上的装饰：只用白和墨，组合点、线、面 #}
 {% macro field_art(v) -%}
@@ -25,14 +26,14 @@
                           'crew': '#1B1D2A', 'big': '#1B1D2A', 'team': '#1B1D2A'} -%}
 <article class="pick" style="--i:{{ i }};--hue:{{ medals[key].hue }}" data-pick="{{ task.id }}">
   <a class="cover" href="{{ url_for('detail', task_id=task.id) }}" aria-label="{{ task.title }}"></a>
-  <div class="pick-field">{{ field_art(i + (1 if lane == 'want' else 0)) }}
+  <div class="pick-field">{% if task.kind == 'team' %}{{ crew_art(task, task.people or 0) }}{% else %}{{ field_art(i + (1 if lane == 'want' else 0)) }}{% endif %}
     <span class="sticker" style="--sticker:{{ sticker_colors.get(pick.reasons[0][0], '#1B1D2A') }}"><i></i>{{ pick.reasons[0][1] }}</span>
     <form class="pick-x" method="post" action="{{ url_for('dismiss_task', task_id=task.id) }}">{{ csrf() }}<button title="不感兴趣，少推荐这类" aria-label="不感兴趣：{{ task.title }}">{{ icon('close') }}</button></form>
   </div>
-  {{ medal(key, 'pick-medal', label='完成可得 ' ~ medals[key].name) }}
+  {% if task.kind == 'team' %}{{ team_badge(key) }}{% else %}{{ medal(key, 'pick-medal', label='完成可得 ' ~ medals[key].name) }}{% endif %}
   <div class="pick-body">
     <span class="kicker">{{ task.project or (pick.tags[0] if pick.tags else '') }}<span>·</span>{{ effort_labels[task.importance] }}<span>·</span><span class="{{ 'soon' if left[1] }}">{{ left[0] }}</span></span>
-    <h3>{% if task.kind == 'team' %}{{ big_tag('大任务') }}{% elif task.big_title %}{{ big_tag(task.big_title) }}{% endif %}{{ task.title }}</h3>
+    <h3>{% if task.big_title %}{{ big_tag(task.big_title) }}{% endif %}{{ task.title }}</h3>
     <p class="goal">{{ task.description or '大任务「' ~ task.big_title ~ '」拆出来的一份分工' }}</p>
     <div class="pick-foot">{{ ava(task.owner_name, task.owner_id) }}<span>{{ task.owner_name }}</span><span class="xp">{{ '每人 ' if task.kind == 'team' }}+{{ offer_xp(task) }} 经验</span>
       <form method="post" action="{{ url_for('task_action', task_id=task.id, action='join' if task.kind == 'team' else 'claim') }}" data-quick-claim>{{ csrf() }}<button class="btn btn-sm">{{ '加入' if task.kind == 'team' else '认领' }}</button></form></div>

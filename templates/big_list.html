@@ -1,11 +1,13 @@
 {% extends 'base.html' %}
 {% from 'components/icon.html' import icon %}
 {% from 'components/team.html' import team_card %}
+{% from 'components/ui.html' import team_emblem %}
 {% block title %}大任务 · 結 YUI{% endblock %}
 {% block body_class %}page-bigs{% endblock %}
 {% block content %}
 <div class="wrap bigs">
   <header class="bigs-head">
+    {{ team_emblem('bigs-emblem') }}
     <div>
       <span class="label">大任务</span>
       <h1>好几个人一起做的任务</h1>

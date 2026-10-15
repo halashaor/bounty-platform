@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% from 'components/icon.html' import icon %}
 {% from 'components/medal.html' import medal %}
-{% from 'components/ui.html' import ava, due, task_card, csrf %}
+{% from 'components/ui.html' import ava, due, task_card, csrf, team_emblem %}
 {% from 'components/picks.html' import lane_body %}
 {% from 'components/directions.html' import direction_bar with context %}
 {% from 'components/team.html' import team_card, team_new %}
@@ -59,7 +59,7 @@
   {# 大任务：好几个人一起做的任务。你在里面的、你发布的排前面，然后是还能加入的 #}
   {% if big_list %}
   <section class="lane lane-team" aria-labelledby="big-title">
-    <header class="sec-head"><h2 id="big-title">大任务</h2>
+    <header class="sec-head">{{ team_emblem('sec-emblem') }}<h2 id="big-title">大任务</h2>
       <span class="lane-why">好几个人一起做，做完每个人都拿勋章</span>
       <a class="shuffle" href="{{ url_for('big_list') }}">全部 {{ big_list|length }} 个{{ icon('arrow') }}</a></header>
     <div class="pick-row">{% for item in big_list[:3] %}{{ team_card(item, loop.index0) }}{% endfor %}{% if big_list|length < 3 %}{{ team_new() }}{% endif %}</div>

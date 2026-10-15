@@ -1,6 +1,6 @@
 {% from 'components/icon.html' import icon %}
 {% from 'components/medal.html' import medal %}
-{% from 'components/ui.html' import ava, csrf %}
+{% from 'components/ui.html' import ava, csrf, team_emblem %}
 
 {# 座位：一起做的人一人一个头像；想要几个人就留几个虚线空位，人数不限时留一个「+」 #}
 {% macro seats(members, size=none, room=true, limit=8) -%}
@@ -24,9 +24,14 @@
 {%- else -%}{{ n }} 人在做 · 还能加入{%- endif -%}
 {%- endmacro %}
 
-{# 大任务的色卡装饰：一把扇子，一个座位一片扇骨（画法见 teams.fan_art） #}
-{% macro crew_art(task, n, cls='', fit='xMaxYMid slice', cx=316) -%}
-{{ fan_art(task.status, n, task.team_size or none, cls, fit, cx) }}
+{# 大任务的色卡装饰：青海波，一个座位一片，从底下往上堆（画法见 teams.wave_art） #}
+{% macro crew_art(task, n, cls='', fit='xMaxYMid slice', inside=false) -%}
+{{ wave_art(task.status, n, task.team_size or none, cls, fit, inside) }}
+{%- endmacro %}
+
+{# 大任务卡左下角：大任务的标志，右上角挂着这次每个人能拿的勋章 #}
+{% macro team_badge(key, status='open') -%}
+<div class="team-badge">{{ team_emblem('team-badge-mark', label='大任务') }}{{ medal(key, 'team-badge-medal', label=('每个人得了 ' if status == 'done' else '一起做的每个人得 ') ~ medals[key].name) }}</div>
 {%- endmacro %}
 
 {# 大任务卡：首页那一排和大任务列表用，样子和推荐卡一样 #}
@@ -37,7 +42,7 @@
   <div class="pick-field">{{ crew_art(item, item.members|length) }}
     <span class="sticker" style="--sticker:#1B1D2A"><i></i>{{ crew_text(item, item.members) }}</span>
   </div>
-  {{ medal(key, 'pick-medal', label=('一起做的每个人得 ' if item.status != 'done' else '每个人得了 ') ~ medals[key].name) }}
+  {{ team_badge(key, item.status) }}
   <div class="pick-body">
     <span class="kicker">{% if item.project %}{{ item.project }}<span>·</span>{% endif %}{{ '想要 ' ~ item.team_size ~ ' 人' if item.team_size else '人数不限' }}{% if item.pieces %}<span>·</span>分工 {{ item.pieces_done }}/{{ item.pieces }}{% endif %}<span>·</span>{% if item.status == 'done' %}{{ item.done_at|md }} 完成{% else %}<span class="{{ 'soon' if left[1] }}">{{ left[0] }}</span>{% endif %}</span>
     <h3>{{ item.title }}</h3>

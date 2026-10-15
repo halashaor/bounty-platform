@@ -3,7 +3,6 @@
 
 做的过程中随时可以拆出「分工」：分工就是普通小任务（tasks.parent_id 指向大任务），一个人认领、拿自己的勋章；
 接下分工也就加入了大任务。分工不用一开始就拆好，想到再拆，不拆也行。"""
-from math import cos, radians, sin
 from markupsafe import Markup
 from .db import connect
 from .honors import MEDALS
@@ -110,39 +109,41 @@ def together(db, user_id):
     return [dict(row, crew=crew.get(row['task_id'], [])) for row in rows]
 
 
-def fan_art(status, members, team_size=None, cls='', fit='xMaxYMid slice', cx=316):
-    """The big-task drawing for a medal-coloured field (400×180, white and ink only): a folding fan with one blade
-    per seat, at most 8. Blades of people who joined are white (the first one ink and a little longer), open seats
-    are faint (one spare blade when the size is open). Handed in, the blades close into one white face with thin
-    ribs; done, the face is solid with an arc around it. Blades carry --fr so a hover can spread the fan.
-    cx=316 lets the card edge crop the right side; cx=200 keeps the whole fan inside."""
+def wave_art(status, members, team_size=None, cls='', fit='xMaxYMid slice', inside=False, width=400, height=180):
+    """The big-task drawing for a medal-coloured field (400×180, white and ink only): 青海波 scales piled up from
+    the bottom, one scale per seat. The pile fills its bottom row first, then the row above (each row one shorter,
+    sitting in the gaps), and the scales shrink as the pile grows. Joined people are white scales (the first one
+    ink), open seats are outlines (one spare when the size is open), so the missing ones sit on top. Handed in:
+    only the people's scales, with a small ink sun above; done: a large white sun behind the pile.
+    Scales carry --i (piling order) for the drop-in animation. inside=True keeps the whole pile in the box;
+    otherwise the right edge crops it. width/height set the box (the default is the card's colour field)."""
     settled = status in ('review', 'done')
     seats = max(members, 1) if settled else max(team_size or members + 1, members, 1)
-    seats = min(seats, 8)
-    cy, radius, hub = 190, 134, 30
-    point = lambda r, a: f'{cx + r * cos(radians(a)):.1f} {cy + r * sin(radians(a)):.1f}'
-
-    def blade(a0, a1, outer, fill, extra=''):
-        return (f'<path d="M{point(hub, a0)}L{point(outer, a0)}A{outer} {outer} 0 0 1 {point(outer, a1)}'
-                f'L{point(hub, a1)}A{hub} {hub} 0 0 0 {point(hub, a0)}Z" fill="{fill}"{extra}/>')
+    seats = min(seats, 21)
+    rows = 1
+    while rows * (rows + 1) // 2 < seats:
+        rows += 1
+    r = min(46.0, width * (0.46 if inside else 0.31) / rows, height * 0.75 / rows)
+    right = width - r - 4 if inside else width - r * 0.35
+    spots = [(right - r * k - 2 * r * i, height + 8 - r * k) for k in range(rows) for i in range(rows - k)][:seats]
+    top_x, top_y = spots[-1]
     parts = []
     if status == 'done':
-        parts.append(f'<path class="fl" style="--fy:-5px" d="M{cx - radius - 22} {cy}A{radius + 22} {radius + 22} 0 0 1 {cx + radius + 22} {cy}" '
-                     'fill="none" stroke="#fff" stroke-width="3"/>')
-        parts.append(blade(180, 360, radius, '#fff'))
+        sun = max(50.0, r * 1.7)
+        parts.append(f'<circle class="fl" style="--fx:-6px;--fy:4px" cx="{top_x - r * 0.4:.1f}" cy="{top_y - r * 0.5:.1f}" r="{sun:.1f}" fill="#fff"/>')
     elif status == 'review':
-        parts.append(blade(180, 360, radius, '#fff'))
-        parts += [f'<path d="M{point(hub, a)}L{point(radius, a)}" stroke="var(--hue)" stroke-width="2"/>'
-                  for a in (180 + i * 180 / seats for i in range(1, seats))]
-    else:
-        gap = 3.2
-        for i in range(seats):
-            a0, a1 = 180 + i * 180 / seats + gap / 2, 180 + (i + 1) * 180 / seats - gap / 2
-            turn = f' class="blade" style="--fr:{(i - (seats - 1) / 2) * 1.6:.1f}deg;transform-origin:{cx}px {cy}px"'
-            if i == 0 and members:
-                parts.append(blade(a0, a1, radius + 8, '#1B1D2A', turn))
-            else:
-                parts.append(blade(a0, a1, radius, '#fff', turn + ('' if i < members else ' opacity=".22"')))
-    parts.append(f'<circle cx="{cx}" cy="{cy}" r="{hub - 9}" fill="#1B1D2A"/>')
-    return Markup(f'<svg class="pick-art crew-art{" " + cls if cls else ""}" viewBox="0 0 400 180" preserveAspectRatio="{fit}" '
+        parts.append(f'<circle class="fl" style="--fy:-6px" cx="{top_x:.1f}" cy="{top_y - r * 1.55:.1f}" r="{r * 0.5:.1f}" fill="#1B1D2A"/>')
+    line = max(2.0, r * 0.075)
+    for order, (x, y) in sorted(enumerate(spots), key=lambda item: (item[1][1], item[0])):
+        joined = order < members
+        lead = order == 0 and members > 0
+        fill = '#1B1D2A' if lead else '#fff' if joined else 'var(--hue)'
+        ring = '#fff' if lead else 'var(--hue)' if joined else 'rgba(255,255,255,.5)'
+        shape = [f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.1f}" fill="{fill}" stroke="var(--hue)" stroke-width="{line * 1.3:.1f}"/>']
+        shape += [f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r * k:.1f}" fill="none" stroke="{ring}" stroke-width="{line:.1f}"/>' for k in (0.72, 0.46, 0.2)]
+        if not joined:
+            shape.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r - line:.1f}" fill="none" stroke="#fff" stroke-opacity=".7" '
+                         f'stroke-width="{line:.1f}" stroke-dasharray="{line * 2:.1f} {line * 1.6:.1f}"/>')
+        parts.append(f'<g class="wave" style="--i:{order}">{"".join(shape)}</g>')
+    return Markup(f'<svg class="pick-art crew-art{" " + cls if cls else ""}" viewBox="0 0 {width} {height}" preserveAspectRatio="{fit}" '
                   f'aria-hidden="true">{"".join(parts)}</svg>')

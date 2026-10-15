@@ -121,7 +121,7 @@
     {% if together %}
     <ol class="together-list">{% for item in together %}
       <li><a href="{{ url_for('detail', task_id=item.task_id) }}">
-        <span class="together-art" style="--hue:{{ medals[item.medal_key].hue }}">{{ crew_art(dict(status='done'), item.crew|length, fit='xMidYMax meet', cx=200) }}{{ medal(item.medal_key) }}</span>
+        <span class="together-art" style="--hue:{{ medals[item.medal_key].hue }}">{{ crew_art(dict(status='done'), item.crew|length, fit='xMidYMax meet', inside=true) }}{{ medal(item.medal_key) }}</span>
         <span class="together-text"><b>{{ item.title }}</b>
           <small>和 {{ item.crew|rejectattr('id', 'equalto', g.user.id)|map(attribute='name')|join('、') or '大家' }} 一起 · 「{{ medals[item.medal_key].name }}」+{{ task_xp(item.medal_key) + item.bonus }} 经验 · {{ item.awarded_at|md }}</small>
           {% if item.praise and item.praise != '成果验收通过。' %}<span class="together-quote"><q>{{ item.praise }}</q><cite>— {{ item.owner_name }}</cite></span>{% endif %}</span></a></li>
