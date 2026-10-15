@@ -13,7 +13,9 @@ def _parse(value):
 
 def open_tasks(db, user_id):
     """Tasks this user could claim right now."""
-    return db.execute('''SELECT t.*,u.name owner_name FROM tasks t JOIN users u ON u.id=t.owner_id
+    return db.execute('''SELECT t.*,u.name owner_name,b.title big_title,
+            (SELECT COUNT(*) FROM tasks x WHERE x.big_id=t.big_id AND x.status<>'done') big_left
+        FROM tasks t JOIN users u ON u.id=t.owner_id LEFT JOIN big_tasks b ON b.id=t.big_id
         WHERE t.status='open' AND t.owner_id<>? AND t.deadline>? ORDER BY t.deadline,t.id''', (user_id, now())).fetchall()
 
 
@@ -72,7 +74,8 @@ def profile(db, user_id):
     texts = Counter()
     for _, grams in done_texts:
         texts.update(grams)
-    return dict(tags=tag_weight, tag_count=tag_count, projects=project_weight, interests=set(interests),
+    bigs = {row['big_id'] for row in db.execute('SELECT big_id FROM big_members WHERE user_id=?', (user_id,))}
+    return dict(tags=tag_weight, tag_count=tag_count, projects=project_weight, interests=set(interests), bigs=bigs,
                 dismissed=dismissed, done_texts=done_texts, text=texts, earned=earned_keys(db, user_id))
 
 
@@ -126,7 +129,15 @@ def recommend(db, user_id, limit=3, batch=0, lane='all', exclude=()):
                 personal = True
                 closest = max(me['done_texts'], key=lambda item: _cosine(grams, item[1]))[0]
                 reasons.append((similarity * 3, 'similar', f'和你做过的「{closest}」很像'))
-        # 5) 人人都成立的：新项目、勋章、时机
+            # 4b) 你加入的大任务里的分工
+            if task['big_id'] in me['bigs']:
+                score += 2
+                personal = True
+                reasons.append((2.5, 'crew', f'你加入了「{task["big_title"]}」'))
+        # 5) 人人都成立的：大任务、新项目、勋章、时机
+        if task['big_id'] and task['big_id'] not in me['bigs']:
+            score += 0.6
+            reasons.append((1.1, 'big', f'大任务「{task["big_title"]}」还差 {task["big_left"]} 份'))
         if task['project'] and not me['projects'][task['project']] \
                 and current - _parse(project_start[task['project']]) < timedelta(days=7):
             score += 0.8
@@ -152,7 +163,7 @@ def recommend(db, user_id, limit=3, batch=0, lane='all', exclude=()):
             reasons.append((0.3, 'fresh', '刚刚发布'))
         reasons.append((0, 'due', due_text(left)))
         # 卡片上先说和"你"有关的理由（选了、做过、参与过、内容像）：它们最能说明为什么是你，而不是人人都成立的那句
-        mine = {'skill', 'interest', 'project', 'similar'}
+        mine = {'skill', 'interest', 'project', 'similar', 'crew'}
         reasons.sort(key=lambda reason: -(reason[0] + (1.5 if reason[1] in mine else 0)))
         # 「按你做过的」里，和你经历有关的任务排在只是"人人都适合"的任务前面
         ranked.append((lane == 'past' and not personal, -score, task['deadline'], task['id'], task,
@@ -176,7 +187,8 @@ def recommend(db, user_id, limit=3, batch=0, lane='all', exclude=()):
             if strict and (not fresh or medal_key(task) in used_keys):
                 continue
             chosen = (fresh or reasons)[0]
-            picks.append(dict(task=task, tags=tags, reasons=[chosen] + [reason for reason in reasons if reason != chosen]))
+            picks.append(dict(task=task, tags=tags, reasons=[chosen] + [reason for reason in reasons if reason != chosen],
+                              ranked=reasons))
             used_reasons.add(chosen[1] if lane == 'want' else chosen[0])
             used_keys.add(medal_key(task))
             taken.add(task['id'])
@@ -259,19 +271,22 @@ def person_stats(db, user_id):
 
 def my_tasks(db, user_id):
     """Group a person's tasks by whose move it is, newest activity first."""
-    rows = db.execute('''SELECT t.*,u.name owner_name,a.name assignee_name,
+    rows = db.execute('''SELECT t.*,u.name owner_name,a.name assignee_name,b.title big_title,b.owner_id big_owner,
             (SELECT kind FROM events e WHERE e.task_id=t.id AND e.kind IN ('claim','submit','return','accept') ORDER BY e.id DESC LIMIT 1) state_kind,
             (SELECT body FROM events e WHERE e.task_id=t.id AND e.kind='return' ORDER BY e.id DESC LIMIT 1) return_reason,
             (SELECT kind FROM events e WHERE e.task_id=t.id ORDER BY e.id DESC LIMIT 1) last_kind,
             (SELECT body FROM events e WHERE e.task_id=t.id ORDER BY e.id DESC LIMIT 1) last_body,
             (SELECT x.name FROM events e JOIN users x ON x.id=e.user_id WHERE e.task_id=t.id ORDER BY e.id DESC LIMIT 1) last_name,
             (SELECT created_at FROM events e WHERE e.task_id=t.id ORDER BY e.id DESC LIMIT 1) last_at
-        FROM tasks t JOIN users u ON u.id=t.owner_id LEFT JOIN users a ON a.id=t.assignee_id
-        WHERE t.owner_id=? OR t.assignee_id=? ORDER BY COALESCE(last_at,t.created_at) DESC,t.id DESC''', (user_id, user_id)).fetchall()
+        FROM tasks t JOIN users u ON u.id=t.owner_id LEFT JOIN users a ON a.id=t.assignee_id LEFT JOIN big_tasks b ON b.id=t.big_id
+        WHERE t.owner_id=? OR t.assignee_id=? OR (t.status='review' AND b.owner_id=? AND b.status='active')
+        ORDER BY COALESCE(last_at,t.created_at) DESC,t.id DESC''', (user_id, user_id, user_id)).fetchall()
     groups = {'yours': [], 'waiting': [], 'unclaimed': [], 'done': []}
     for task in rows:
         mine_to_do = task['assignee_id'] == user_id and task['status'] == 'active'
-        mine_to_check = task['owner_id'] == user_id and task['status'] == 'review'
+        # 自己牵头的大任务里，别人交上来的分工也等你验收
+        mine_to_check = task['status'] == 'review' and task['assignee_id'] != user_id \
+            and user_id in (task['owner_id'], task['big_owner'])
         if mine_to_do or mine_to_check:
             groups['yours'].append(task)
         elif task['status'] in ('active', 'review'):

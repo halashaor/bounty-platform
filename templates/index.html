@@ -4,6 +4,7 @@
 {% from 'components/ui.html' import ava, due, task_card, csrf %}
 {% from 'components/picks.html' import lane_body %}
 {% from 'components/directions.html' import direction_bar with context %}
+{% from 'components/bigs.html' import big_card %}
 {% block title %}发现 · 結 YUI{% endblock %}
 {% block body_class %}page-home{% endblock %}
 
@@ -30,7 +31,7 @@
       </a>
       {% if hand %}
       <div class="hand"><span>手上的 {{ hand|length }} 件</span>
-        {% for task in hand %}<a href="{{ url_for('detail', task_id=task.id) }}"><span class="st {{ task.status }}"><i></i></span><span>{{ task.title }}</span><em>{{ '等你验收' if task.status == 'review' else due_label(task.deadline)[0] }}</em></a>{% endfor %}
+        {% for task in hand %}<a href="{{ url_for('detail', task_id=task.id) }}"><span class="st {{ task.status }}"><i></i></span><span>{{ task.title }}</span><em>{{ '等你验收' if task.status == 'review' and task.assignee_id != g.user.id else due_label(task.deadline)[0] }}</em></a>{% endfor %}
       </div>
       {% endif %}
     </div>
@@ -54,6 +55,15 @@
     {% endif %}
   </div>
   {% endif %}
+
+  {# 大任务：好几个人一起做的事。你加入的排在前面 #}
+  <section class="bigband{{ ' quiet' if not big_list }}" aria-labelledby="big-title">
+    <header class="sec-head"><h2 id="big-title">大任务</h2>
+      <small>{% if big_list %}好几个人一起做的事，挑一份分工接下来{% else %}要好几个人一起才能做完的事，可以发起一个大任务，分好工让大家来接{% endif %}</small>
+      <a class="right" href="{{ url_for('big_list') if big_list else url_for('new_big') }}">{% if big_list %}全部 {{ big_list|length }} 个{% else %}发起大任务{% endif %}{{ icon('arrow') }}</a></header>
+    {% if big_list %}<div class="big-row">{% for item in big_list[:3] %}{{ big_card(item, loop.index0, item.lead and item.done == item.total) }}{% endfor %}
+      {% if big_list|length < 3 %}<a class="bigcard-new" href="{{ url_for('new_big') }}"><span class="plus">{{ icon('plus') }}</span><b>发起大任务</b><small>要好几个人一起做的事，拆成几份分工，让大家来接</small></a>{% endif %}</div>{% endif %}
+  </section>
 
   {{ direction_bar(directions, interests) }}
 

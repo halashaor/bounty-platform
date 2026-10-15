@@ -3,6 +3,7 @@
 {% from 'components/medal.html' import medal %}
 {% from 'components/ui.html' import ava, plate, csrf, hanko %}
 {% from 'components/blocks.html' import build_svg %}
+{% from 'components/bigs.html' import mosaic %}
 {% block title %}成就 · 結 YUI{% endblock %}
 {% block body_class %}page-honors{% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='case.js') }}" defer></script><script src="{{ url_for('static', filename='share.js') }}" defer></script>{% endblock %}
@@ -115,6 +116,21 @@
     <div class="stat panel"><b class="num">{{ stats.helped }}</b><span>帮过的人</span><small>你接过谁的任务</small></div>
     <div class="stat panel"><b class="num">{{ stats.claps }}</b><span>收到的鼓掌</span><small>队友在动态里拍的</small></div>
     <a class="stat stat-link panel" href="{{ url_for('recap_page') }}">{{ icon('book') }}<span>学期绘卷</span><small>{{ term.split('-')[0] }} {{ '春季' if term.endswith('spring') else '秋季' }}学期，到现在为止的你 →</small></a>
+  </section>
+
+  <section class="together panel" id="together" aria-labelledby="together-title">
+    <h2 class="sec" id="together-title">一起完成的大任务<span>{{ big_credits|length }}</span><small>拼满的图，带着你那几块</small></h2>
+    {% if big_credits %}
+    <ol class="together-list">{% for item in big_credits %}
+      <li><a href="{{ url_for('big_detail', big_id=item.big_id) }}">
+        <span class="together-art">{{ mosaic(item.tiles, 'm-keep') }}</span>
+        <span class="together-text"><b>{{ item.title }}</b>
+          <small>{% if item.lead %}你牵头{% if item.pieces %} · 做完 {{ item.pieces }} 份{% endif %}{% else %}你做完 {{ item.pieces }} 份{% endif %} · {{ item.people }} 人一起 · +{{ item.bonus }} 经验 · {{ item.awarded_at|md }}</small>
+          <span class="together-quote"><q>{{ item.closing }}</q><cite>— {{ item.owner_name }}</cite></span></span></a></li>
+    {% endfor %}</ol>
+    {% else %}
+    <div class="empty"><b>还没有</b><span>在「大任务」里接一份分工，等大家一起做完，这里会留下一张拼满的图。</span><a class="btn btn-line btn-sm" href="{{ url_for('big_list') }}">看看大任务</a></div>
+    {% endif %}
   </section>
 
   <section class="ach-mid">

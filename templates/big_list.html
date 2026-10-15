@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% from 'components/icon.html' import icon %}
+{% from 'components/bigs.html' import big_card %}
+{% block title %}大任务 · 結 YUI{% endblock %}
+{% block body_class %}page-bigs{% endblock %}
+{% block content %}
+<div class="wrap bigs">
+  <header class="bigs-head">
+    <div>
+      <span class="label">大任务</span>
+      <h1>好几个人一起做的事</h1>
+      <p>大任务分成几份分工，每份一个人接，做完照常拿勋章。全部做完、牵头人收尾后，出过力的人再一起多得一份经验。</p>
+    </div>
+    <a class="btn btn-big" href="{{ url_for('new_big') }}">{{ icon('plus') }}发起大任务</a>
+  </header>
+
+  <section aria-labelledby="active-title">
+    <h2 class="sec" id="active-title">进行中<span>{{ active|length }}</span></h2>
+    {% if active %}
+    <div class="big-grid">{% for item in active %}{{ big_card(item, loop.index0, ready(item) and item.lead) }}{% endfor %}</div>
+    {% else %}
+    <div class="empty panel"><b>现在没有进行中的大任务</b><span>要好几个人一起才能做完的事，就发起一个，分好工让大家来接。</span><a class="btn btn-sm" href="{{ url_for('new_big') }}">{{ icon('plus') }}发起大任务</a></div>
+    {% endif %}
+  </section>
+
+  {% if done %}
+  <section aria-labelledby="done-title">
+    <h2 class="sec" id="done-title">一起完成的<span>{{ done|length }}</span><small>拼满的图都留在这里</small></h2>
+    <div class="big-grid small">{% for item in done %}{{ big_card(item, loop.index0) }}{% endfor %}</div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

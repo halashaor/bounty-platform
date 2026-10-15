@@ -18,6 +18,8 @@ PARTS = {
     'dot-m': (2, 2, '<circle r="10"/>'),
     'dot-l': (4, 4, '<circle r="20"/>'),
     'ring': (4, 4, '<circle r="16.5" fill="none" stroke="currentColor" stroke-width="7"/>'),
+    'knot': (4, 2, '<circle cx="-6.5" r="7.2" fill="none" stroke="currentColor" stroke-width="3.6"/>'
+                   '<circle cx="6.5" r="7.2" fill="none" stroke="currentColor" stroke-width="3.6"/>'),
     'bar-3': (3, 1, '<rect x="-15" y="-3.5" width="30" height="7" rx="3.5"/>'),
     'bar-6': (6, 1, '<rect x="-30" y="-3.5" width="60" height="7" rx="3.5"/>'),
     'dotline': (5, 1, '<circle cx="-21" r="3"/><circle cx="-13" r="3"/><circle cx="-5" r="3"/><rect x="1" y="-3" width="23" height="6" rx="3"/>'),
@@ -29,7 +31,7 @@ PARTS = {
     'sq-4': (4, 4, '<rect x="-20" y="-20" width="40" height="40"/>'),
     **{f'medal-{key}': (3, 3, None) for key in MEDALS},   # 勋章零件用页面上的勋章图形
 }
-FAMILY = {'点': ('dot-s', 'dot-m', 'dot-l', 'ring'), '线': ('bar-3', 'bar-6', 'dotline', 'diag'),
+FAMILY = {'点': ('dot-s', 'dot-m', 'dot-l', 'ring', 'knot'), '线': ('bar-3', 'bar-6', 'dotline', 'diag'),
           '面': ('sq-2', 'quarter', 'half', 'tri', 'sq-4'), '勋章': tuple(f'medal-{key}' for key in MEDALS)}
 
 

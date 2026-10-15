@@ -102,6 +102,43 @@ CREATE TABLE IF NOT EXISTS org_tags (
  created_by INTEGER REFERENCES users(id),
  created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS big_tasks (
+ id INTEGER PRIMARY KEY,
+ title TEXT NOT NULL,
+ goal TEXT NOT NULL,
+ project TEXT,
+ owner_id INTEGER NOT NULL REFERENCES users(id),
+ deadline TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','done')),
+ closing TEXT,
+ created_at TEXT NOT NULL,
+ done_at TEXT
+);
+CREATE TABLE IF NOT EXISTS big_members (
+ big_id INTEGER NOT NULL REFERENCES big_tasks(id),
+ user_id INTEGER NOT NULL REFERENCES users(id),
+ joined_at TEXT NOT NULL,
+ PRIMARY KEY(big_id,user_id)
+);
+CREATE TABLE IF NOT EXISTS big_events (
+ id INTEGER PRIMARY KEY,
+ big_id INTEGER NOT NULL REFERENCES big_tasks(id),
+ user_id INTEGER NOT NULL REFERENCES users(id),
+ kind TEXT NOT NULL,
+ body TEXT NOT NULL,
+ created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS big_credits (
+ big_id INTEGER NOT NULL REFERENCES big_tasks(id),
+ user_id INTEGER NOT NULL REFERENCES users(id),
+ lead INTEGER NOT NULL DEFAULT 0,
+ pieces INTEGER NOT NULL DEFAULT 0,
+ bonus INTEGER NOT NULL DEFAULT 0,
+ awarded_at TEXT NOT NULL,
+ seen_at TEXT,
+ PRIMARY KEY(big_id,user_id)
+);
+CREATE INDEX IF NOT EXISTS big_credits_by_user ON big_credits(user_id);
 CREATE TABLE IF NOT EXISTS lines_solved (
  user_id INTEGER NOT NULL REFERENCES users(id),
  level INTEGER NOT NULL,
@@ -167,6 +204,9 @@ def initialize(path):
             db.execute('ALTER TABLE tasks ADD COLUMN project TEXT')
         if 'cold' not in task_columns:   # 等了好几天才有人接的任务，完成时多给经验
             db.execute('ALTER TABLE tasks ADD COLUMN cold INTEGER NOT NULL DEFAULT 0')
+        if 'big_id' not in task_columns:   # 大任务的分工：属于哪个大任务（普通小任务为空）
+            db.execute('ALTER TABLE tasks ADD COLUMN big_id INTEGER REFERENCES big_tasks(id)')
+        db.execute('CREATE INDEX IF NOT EXISTS tasks_by_big ON tasks(big_id)')
         if 'bonus' not in {row['name'] for row in db.execute('PRAGMA table_info(honors)')}:
             db.execute('ALTER TABLE honors ADD COLUMN bonus INTEGER NOT NULL DEFAULT 0')
         user_columns = {row['name'] for row in db.execute('PRAGMA table_info(users)')}

@@ -11,6 +11,10 @@
 <div class="wrap compose">
   <form class="editor panel" method="post" action="{{ url_for('new_task') }}" data-editor>
     {{ csrf() }}
+    <nav class="kind-switch" aria-label="发布什么">
+      <a href="{{ url_for('new_task') }}" aria-current="page"><b>小任务</b><small>一个人就能做完</small></a>
+      <a href="{{ url_for('new_big') }}"><b>大任务</b><small>好几个人分工一起做</small></a>
+    </nav>
     <h1>发布任务</h1>
     <p class="intro">写清楚要什么、做到什么程度算完成。发布后会出现在「发现」里，系统会推荐给做过相似任务的同学。</p>
     <label class="field"><span>标题<small>用动词开头，比如「复现」「造」「整理」</small></span>

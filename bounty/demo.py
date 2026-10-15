@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from werkzeug.security import generate_password_hash
 from .db import connect, initialize
 from .service import act, clap, create_task, set_interests
-from . import blocks
+from . import bigs, blocks
 
 DEMO_USERS = ('发布者', '认领人', '其他成员', '陈默', '王瑶', '周然', '林夕')
 DEMO_PASSWORD = 'demo12345'
@@ -44,6 +44,7 @@ PRAISE = {'整理上周周赛的错题': '写得很清楚', '补全 50 道题的
           '清洗去年比赛的提交记录': '超出预期'}
 # 已经拆开看过的勋章（其余的留在信箱里，登录后能看到颁奖）
 SEEN = ('整理上周周赛的错题', '补全 50 道题的样例解释', '连夜改好报名表')
+PIECES_SEEN = ('出一道签到题', '带新人配好比赛环境', '讲一次 STL 入门')
 INTERESTS = {'认领人': '图论 PyTorch', '王瑶': '数据 论文'}
 # 团队的标签表（团队成员整理过的样子）：顺序就是方向条和发布页上的顺序
 TEAM_TAGS = (('数据', '造数据、清洗、标注、整理题目'), ('讲解', '讲题、写题解、带新人'), ('实验', '跑实验、调参、消融'),
@@ -59,6 +60,24 @@ BUILDS = {
     '周然': ('夜里的实验室', 'ink', [['quarter', 'blue', 12, 12, 1], ['dot-s', 'white', 2, 2, 0], ['dot-s', 'white', 6, 4, 0], ['dot-s', 'white', 10, 1, 0],
                                    ['sq-2', 'white', 12, 2, 0], ['bar-3', 'white', 2, 13, 0], ['sq-2', 'blue', 5, 10, 0], ['medal-major-normal', 'white', 1, 7, 0]]),
 }
+# 大任务：(标题, 项目, 目标, 牵头人, 几天后到目标日期, 加入的人, 上面已有的任务里归它的, 新加的分工, 收尾的话)
+# 新加的分工：(标题, 标签, 勋章, 走到哪一步, 由谁来做)，都由牵头人加
+BIGS = (
+    ('办好周六模拟赛', '校赛 2026', '周六下午两点准时开赛：题目、数据、机房和赛时答疑全部就位，赛后当天发题解。', '发布者', 3,
+     ('陈默', '周然'), ('给模拟赛造数据', '预订周六模拟赛的机房'),
+     (('出一道签到题', '讲解', 'light-normal', 'accept', '周然'),
+      ('给 E 题写标程和题解', '讲解', 'standard-normal', 'claim', '认领人'),
+      ('赛时在群里答疑', '杂务', 'light-normal', 'open', None)), None),
+    ('GNN 三个基线复现', 'GNN 研究', 'GCN、GAT、GraphSAGE 在同一套代码里跑通，精度对齐论文，超参和耗时整理成一张对比表。', '其他成员', 20,
+     ('陈默',), ('复现 GCN 的 baseline', '复现 GraphSAGE 的 baseline', '对比三种 GNN 的训练速度'),
+     (('复现 GAT 的 baseline', '论文', 'major-normal', 'submit', '林夕'),
+      ('把三份结果整理成对比表', '实验', 'light-normal', 'open', None)), None),
+    ('新人训练营 · 第一周', '新人培养', '带新人走完第一周：配好环境、上完两节课、做完第一次周赛，每个人都知道下一步练什么。', '王瑶', 10,
+     (), ('写周会纪要模板', '整理上周周赛的错题'),
+     (('带新人配好比赛环境', '杂务', 'standard-normal', 'accept', '林夕'),
+      ('讲一次 STL 入门', '讲解', 'standard-normal', 'accept', '陈默')), '第一周顺利办完，新人都留下来了。谢谢大家！'),
+)
+BIG_TALK = {'办好周六模拟赛': (('陈默', 'E 题的数据我来造，周四前给。'), ('发布者', '机房还没人订，谁顺路去一趟？'))}
 CLAPS = {'写周会纪要模板': ('王瑶', '陈默'), '清洗去年比赛的提交记录': ('陈默', '周然', '林夕'),
          '修好评测机的内存统计': ('认领人', '王瑶', '周然', '林夕'), '复现 GCN 的 baseline': ('陈默', '王瑶')}
 
@@ -98,11 +117,38 @@ def seed_demo(path):
             act(path, task_id, U[owner], 'accept', PRAISE.get(title, '很清楚，已经在用了。'))
             for fan in CLAPS.get(title, ()):
                 clap(path, task_id, U[fan])
+    for title, project, goal, lead, days, members, linked, pieces, closing in BIGS:
+        stamp = (soon + timedelta(days=days, hours=10)).isoformat(timespec='seconds')
+        rows = [dict(title=row[0], tag=row[1], kind=row[2]) for row in pieces]
+        big_id = bigs.create(path, U[lead], dict(title=title, goal=goal, project=project, deadline=stamp), rows)
+        with connect(path, write=True) as db:
+            db.executemany('UPDATE tasks SET big_id=? WHERE title=?', [(big_id, name) for name in linked])
+            # 已有的任务归进来时，接过它们的人也算加入
+            db.execute('''INSERT OR IGNORE INTO big_members (big_id,user_id,joined_at)
+                SELECT big_id,assignee_id,created_at FROM tasks WHERE big_id=? AND assignee_id IS NOT NULL''', (big_id,))
+            ids = {row['title']: row['id'] for row in db.execute('SELECT id,title FROM tasks WHERE big_id=?', (big_id,))}
+        for name in members:
+            bigs.join(path, big_id, U[name])
+        for name, body in BIG_TALK.get(title, ()):
+            bigs.comment(path, big_id, U[name], body)
+        for piece_title, _, _, stage, worker in pieces:
+            if stage == 'open':
+                continue
+            act(path, ids[piece_title], U[worker], 'claim')
+            if stage in ('submit', 'accept'):
+                act(path, ids[piece_title], U[worker], 'submit', '做好了，放在共享盘，说明写在 README 里。')
+            if stage == 'accept':
+                act(path, ids[piece_title], U[lead], 'accept', '很清楚，已经在用了。')
+        if closing:
+            bigs.close(path, big_id, U[lead], closing)
     with connect(path, write=True) as db:
         db.executemany('UPDATE honors SET seen_at=awarded_at WHERE task_id=(SELECT id FROM tasks WHERE title=?)',
-                       [(title,) for title in SEEN])
+                       [(title,) for title in SEEN + PIECES_SEEN])
+        # 收尾的合力纪念：只有「认领人」的还没拆，登录后能看到
+        db.execute('UPDATE big_credits SET seen_at=awarded_at WHERE user_id<>?', (U['认领人'],))
     for name, tags in INTERESTS.items():
         set_interests(path, U[name], tags)
     for name, (title, bg, parts) in BUILDS.items():
         blocks.show(path, U[name], blocks.save(path, U[name], None, title, bg, parts))
-    return len(TASKS)
+    with connect(path) as db:
+        return db.execute('SELECT COUNT(*) FROM tasks').fetchone()[0]

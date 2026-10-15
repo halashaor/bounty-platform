@@ -233,23 +233,26 @@ class WorkflowTest(unittest.TestCase):
     def test_demo_database_is_independent_and_idempotent_safe(self):
         from bounty.demo import seed_demo
         path = str(Path(self.temp.name) / 'demo.sqlite3')
-        self.assertEqual(seed_demo(path), 27)
+        self.assertEqual(seed_demo(path), 34)
         with self.assertRaises(ValueError):
             seed_demo(path)
         with connect(path) as db:
             counts = dict(db.execute('SELECT status,COUNT(*) FROM tasks GROUP BY status').fetchall())
-            self.assertEqual(counts, {'open': 15, 'active': 3, 'review': 2, 'done': 7})
-            self.assertEqual(db.execute('SELECT COUNT(*) FROM honors').fetchone()[0], 7)
+            self.assertEqual(counts, {'open': 17, 'active': 4, 'review': 3, 'done': 10})
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM honors').fetchone()[0], 10)
             # 演示里有一部分勋章已经拆开过，其余留在信箱里等颁奖
             self.assertEqual(db.execute('SELECT COUNT(*) FROM honors WHERE seen_at IS NULL').fetchone()[0], 4)
             self.assertEqual(db.execute('SELECT COUNT(DISTINCT project) FROM tasks').fetchone()[0], 5)
+            # 三个大任务：两个在做，一个已经收尾，「认领人」的合力纪念还在信箱里
+            self.assertEqual(dict(db.execute('SELECT status,COUNT(*) FROM big_tasks GROUP BY status').fetchall()), {'active': 2, 'done': 1})
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM big_credits WHERE seen_at IS NULL').fetchone()[0], 1)
             self.assertFalse(db.execute('PRAGMA foreign_key_check').fetchall())
         app = create_app({'TESTING': True, 'DATABASE': path, 'SECRET_KEY': 'test'})
         client = app.test_client()
         self.post(client, '/auth/login', {'name': '认领人', 'password': 'demo12345'})
         response = client.get('/')
         # 发现页默认只列可认领的任务，一页 12 个
-        self.assertEqual(response.text.count('data-task='), 15)
+        self.assertEqual(response.text.count('data-task='), 17)
         self.assertEqual(response.text.count('class="wall-zone"'), 2)
         # 演示账号「认领人」选过方向：两排推荐各三张，互不重复
         picks = response.text.split('data-lane-body="want"')[1]

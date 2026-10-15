@@ -55,6 +55,7 @@
       <p class="huge"><b class="num" data-count="{{ r.helped|length }}">{{ r.helped|length }}</b><span>位队友</span></p>
       <div class="slide-people">{% for name in r.helped %}<span style="--i:{{ loop.index0 }}">{{ ava(name) }}{{ name }}</span>{% endfor %}</div>
       {% if r.published %}<p>另外，你发布的任务这学期有 <b class="num">{{ r.published }}</b> 个被队友完成了。</p>{% endif %}
+      {% if r.bigs %}<p>还和大家一起完成了 <b class="num">{{ r.bigs|length }}</b> 个大任务：{% for item in r.bigs %}「{{ item.title }}」{% if item.lead %}（你牵头）{% endif %}{{ '、' if not loop.last }}{% endfor %}。</p>{% endif %}
     </div>
   </section>
 

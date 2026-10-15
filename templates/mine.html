@@ -1,7 +1,8 @@
 {% extends 'base.html' %}
 {% from 'components/icon.html' import icon %}
 {% from 'components/medal.html' import medal %}
-{% from 'components/ui.html' import due %}
+{% from 'components/ui.html' import due, big_tag %}
+{% from 'components/bigs.html' import big_card, mosaic %}
 {% block title %}我的任务 · 結 YUI{% endblock %}
 {% block body_class %}page-mine{% endblock %}
 {% block content %}
@@ -9,19 +10,19 @@
 {%- set me = g.user.id -%}
 {%- set who = '你' if task.last_name == g.user.name else task.last_name -%}
 {%- if task.status == 'active' and task.assignee_id == me -%}{% set ball = '被退回，等你改' if task.state_kind == 'return' else '你在做' %}
-{%- elif task.status == 'review' and task.owner_id == me -%}{% set ball = '等你验收' %}
+{%- elif task.status == 'review' and task.assignee_id != me and me in (task.owner_id, task.big_owner) -%}{% set ball = '等你验收' %}
 {%- elif task.status == 'review' -%}{% set ball = '等 ' ~ task.owner_name ~ ' 验收' %}
 {%- elif task.status == 'active' -%}{% set ball = task.assignee_name ~ ' 在做' %}
 {%- elif task.status == 'open' -%}{% set ball = '等人认领' %}
 {%- else -%}{% set ball = ('你完成 · 得到「' ~ medals[medal_key(task)].name ~ '」') if task.assignee_id == me else (task.assignee_name ~ ' 完成') %}{%- endif -%}
 <a class="mrow" href="{{ url_for('detail', task_id=task.id) }}">{{ medal(medal_key(task)) }}
-  <div class="mrow-main"><b>{{ task.title }}</b>
+  <div class="mrow-main">{% if task.big_title %}{{ big_tag(task.big_title) }}{% endif %}<b>{{ task.title }}</b>
     <p>{% if task.status == 'active' and task.state_kind == 'return' %}<em class="ev-tag return">退回修改</em>{{ task.return_reason }}{% elif task.last_kind %}<em class="ev-tag {{ task.last_kind }}">{{ kinds.get(task.last_kind, '动态') }}</em>{{ who }}：{{ task.last_body }}{% else %}{{ task.created_at|md }} 发布{% endif %}</p></div>
   <span class="st {{ task.status }}"><i></i>{{ ball }}</span>{{ due(task) }}</a>
 {%- endmacro %}
 <div class="wrap mine">
   <header class="mine-head">
-    <div><span class="label">我的任务</span><div class="bigrow"><b class="big num">{{ groups.yours|length }}</b><span>件事轮到你</span></div></div>
+    <div><span class="label">我的任务</span><div class="bigrow"><b class="big num">{{ groups.yours|length + ready_bigs|length }}</b><span>件事轮到你</span></div></div>
     <a class="btn btn-line" href="{{ url_for('index') }}">{{ icon('compass') }}去发现找任务</a>
   </header>
   {% for key, title, note in [
@@ -29,9 +30,21 @@
     ('waiting', '等对方', '你提交了等验收，或者别人正在做你发布的任务'),
     ('unclaimed', '你发布的，还没人认领', '可以在讨论区补充说明，系统也会推荐给合适的同学'),
     ('done', '已完成', '最近 10 个')] %}
+  {% if key == 'waiting' and my_bigs %}
+  <section class="mine-group">
+    <h2 class="sec">我参与的大任务<span>{{ my_bigs|length }}</span><small>你牵头或加入的，分工都在里面</small></h2>
+    <div class="big-grid">{% for item in my_bigs %}{{ big_card(item, loop.index0, item.lead and ready(item)) }}{% endfor %}</div>
+  </section>
+  {% endif %}
   <section class="mine-group">
     <h2 class="sec">{{ title }}<span>{{ groups[key]|length }}</span><small>{{ note }}</small></h2>
-    {% if groups[key] %}<div class="mlist panel">{% for task in groups[key] %}{{ row(task) }}{% endfor %}</div>
+    {% set extra = ready_bigs if key == 'yours' else [] %}
+    {% if groups[key] or extra %}<div class="mlist panel">
+      {% for item in extra %}<a class="mrow ready-big" href="{{ url_for('big_detail', big_id=item.id) }}">
+        <span class="row-art">{{ mosaic(item.tiles) }}</span>
+        <div class="mrow-main">{{ big_tag(item.title) }}<b>分工全都做完了</b><p>你是牵头人，去收尾，给 {{ item.crew|length }} 个人发合力纪念。</p></div>
+        <span class="st review"><i></i>等你收尾</span><span class="due">{{ item.done }} / {{ item.total }} 份</span></a>{% endfor %}
+      {% for task in groups[key] %}{{ row(task) }}{% endfor %}</div>
     {% else %}<div class="empty panel">{% if key == 'yours' %}<b>现在没有轮到你的事</b><span>去「发现」挑一个吧。</span>{% elif key == 'done' %}<b>还没有完成的任务</b><span>第一个验收通过的任务，会在这里留下记录。</span>{% else %}<span>暂时没有。</span>{% endif %}</div>{% endif %}
   </section>
   {% endfor %}

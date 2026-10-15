@@ -67,7 +67,11 @@ def build(db, user_id, term):
     xp_of = lambda row: task_xp(row['medal_key']) + row['bonus']
     before = sum(xp_of(row) for row in db.execute('SELECT medal_key,bonus FROM honors WHERE user_id=? AND awarded_at<?',
                                                   (user_id, span[0])))
-    gained = sum(xp_of(row) for row in awards)
+    bigs = db.execute('''SELECT b.title,c.lead,c.pieces,c.bonus,c.awarded_at FROM big_credits c JOIN big_tasks b ON b.id=c.big_id
+        WHERE c.user_id=? AND c.awarded_at<? ORDER BY c.awarded_at''', (user_id, span[1])).fetchall()
+    before += sum(row['bonus'] for row in bigs if row['awarded_at'] < span[0])
+    bigs = [row for row in bigs if row['awarded_at'] >= span[0]]
+    gained = sum(xp_of(row) for row in awards) + sum(row['bonus'] for row in bigs)
     tags = Counter()
     for row in db.execute('''SELECT x.tag FROM honors h JOIN task_tags x ON x.task_id=h.task_id
             WHERE h.user_id=? AND h.awarded_at>=? AND h.awarded_at<?''', (user_id, *span)):
@@ -101,6 +105,6 @@ def build(db, user_id, term):
         helped=helped, tags=tags.most_common(3), praises=praises[:3], claps=sum(row['claps'] for row in awards),
         biggest=dict(title=biggest['title'], key=biggest['medal_key'], owner=biggest['owner'], xp=xp_of(biggest)) if biggest else None,
         best_week=dict(monday=best_week[0], count=best_week[1]) if best_week and best_week[1] > 1 else None,
-        published=published, titles=unlocked, team=dict(team), lines=lines, stamp=stamp or 0,
+        published=published, titles=unlocked, bigs=[dict(title=row['title'], lead=bool(row['lead'])) for row in bigs], team=dict(team), lines=lines, stamp=stamp or 0,
         first=dict(title=awards[0]['title'], on=awards[0]['awarded_at']) if awards else None,
     )

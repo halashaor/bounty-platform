@@ -4,17 +4,21 @@ import sqlite3
 import zlib
 from datetime import datetime, timedelta, timezone
 from functools import wraps
+from itertools import zip_longest
 from pathlib import Path
 from urllib.parse import unquote
 from flask import Flask, abort, flash, g, redirect, render_template, render_template_string, request, session, url_for, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
-from bounty import blocks, discover, games, progress, recap, tags, titles, unlocks
+from bounty import bigs, blocks, discover, games, progress, recap, tags, titles, unlocks
 from bounty.db import connect, initialize
 from bounty.honors import COLD_DAYS, EFFORT, IMPORTANCE, URGENCY, MEDALS, cold_bonus, medal_key, task_xp
 from bounty.service import (CATEGORIES, STATUSES, KINDS, MAX_INTERESTS, TEAM_TZ, InvalidAction, act, clap, create_task,
                             dismiss, is_cold, now, required, set_interests, waited_days, zone)
 
 PAGE_SIZE = 12
+# 等这个人验收的任务：自己发布的，或者自己牵头的大任务里别人交上来的分工（三个参数都是这个人的 id）
+CHECKABLE = '''status='review' AND assignee_id<>? AND (owner_id=?
+    OR big_id IN (SELECT id FROM big_tasks WHERE owner_id=? AND status='active'))'''
 
 
 def due_label(deadline):
@@ -131,7 +135,8 @@ def create_app(config=None):
                                  task_xp=progress.task_xp, praise_options=PRAISE, due_label=due_label, tag_look=tag_look,
                                  max_interests=MAX_INTERESTS, local_now=lambda: datetime.now(g.tz), offer_xp=offer_xp,
                                  cold_days=cold_days, is_cold=is_cold, title_names=titles.BY_KEY,
-                                 block_parts=blocks.PARTS, block_colors=blocks.COLORS, block_bgs=blocks.BACKGROUNDS)
+                                 block_parts=blocks.PARTS, block_colors=blocks.COLORS, block_bgs=blocks.BACKGROUNDS,
+                                 big_grid=bigs.grid)
 
     def page_url(**changes):
         """Same page, same filters, with a few changed; empty values drop out of the URL."""
@@ -147,13 +152,14 @@ def create_app(config=None):
             with database() as db:
                 # 信箱里装两种东西：还没拆的勋章，和刚解锁、还没庆祝过的称号
                 extra['mailbox'] = db.execute('SELECT COUNT(*) FROM honors WHERE user_id=? AND seen_at IS NULL',
-                                              (g.user['id'],)).fetchone()[0] + len(titles.unseen(db, g.user['id']))
+                                              (g.user['id'],)).fetchone()[0] + len(titles.unseen(db, g.user['id'])) \
+                    + bigs.unseen_count(db, g.user['id'])
                 extra['play_new'] = unlocks.new_count(db, g.user['id'])
                 extra['my_title'] = titles.chosen_title(db, g.user['id'])
                 extra['me'] = progress.person_progress(db, g.user['id'])
-                # 轮到我的事：我在做的、等我验收的
-                extra['my_turn'] = db.execute('''SELECT COUNT(*) FROM tasks WHERE (assignee_id=? AND status='active')
-                    OR (owner_id=? AND status='review')''', (g.user['id'], g.user['id'])).fetchone()[0]
+                # 轮到我的事：我在做的、等我验收的（牵头的大任务里的分工也算），以及能收尾的大任务
+                extra['my_turn'] = db.execute(f'''SELECT COUNT(*) FROM tasks WHERE (assignee_id=? AND status='active')
+                    OR ({CHECKABLE})''', (g.user['id'],) * 4).fetchone()[0] + bigs.ready_count(db, g.user['id'])
         return extra
 
     def local(value):
@@ -241,7 +247,8 @@ def create_app(config=None):
             clauses.append('(t.title LIKE ? OR t.description LIKE ?)'); params.extend([f'%{query}%'] * 2)
         with database() as db:
             earned = discover.earned_keys(db, g.user['id'])
-            tasks = db.execute('SELECT t.*,u.name owner_name FROM tasks t JOIN users u ON u.id=t.owner_id' +
+            tasks = db.execute('SELECT t.*,u.name owner_name,b.title big_title FROM tasks t JOIN users u ON u.id=t.owner_id '
+                               'LEFT JOIN big_tasks b ON b.id=t.big_id' +
                                (' WHERE ' + ' AND '.join(clauses) if clauses else '') +
                                " ORDER BY t.status='done', t.urgency='urgent' DESC, t.deadline, t.id DESC", params).fetchall()
             if unlock:
@@ -254,8 +261,9 @@ def create_app(config=None):
                 WHERE project IS NOT NULL GROUP BY project ORDER BY latest DESC''')]
             tags_of = discover.tags_by_task(db)
             lanes = picks_for(db, want_batch, batch)
-            hand = db.execute('''SELECT * FROM tasks WHERE (assignee_id=? AND status='active') OR (owner_id=? AND status='review')
-                ORDER BY deadline LIMIT 3''', (g.user['id'], g.user['id'])).fetchall()
+            hand = db.execute(f'''SELECT * FROM tasks WHERE (assignee_id=? AND status='active') OR ({CHECKABLE})
+                ORDER BY deadline LIMIT 3''', (g.user['id'],) * 4).fetchall()
+            big_list = bigs.listing(db, g.user['id'])
             feed = discover.team_feed(db, g.user['id'])
             week = discover.week_summary(db, g.tz)
             bundles = progress.team_bundles(db)
@@ -267,7 +275,7 @@ def create_app(config=None):
         return render_template('index.html', tasks=tasks, zones=zones, scope=scope, tag=tag, project=project, status=status,
                                query=query, effort=effort, unlock=unlock, batch=batch, want_batch=want_batch, counts=counts,
                                hand=hand, feed=feed, week=week, bundles=bundles, earned_keys=earned, unlockable=unlockable,
-                               top_tags=top_tags, projects=projects, tags_of=tags_of, notes=notes,
+                               top_tags=top_tags, projects=projects, tags_of=tags_of, notes=notes, big_list=big_list,
                                term=term, term_label=recap.label(term), term_left=term_left, **lanes)
 
     def clap_notes(db):
@@ -331,7 +339,9 @@ def create_app(config=None):
     def mine():
         with database() as db:
             groups = discover.my_tasks(db, g.user['id'])
-        return render_template('mine.html', groups=groups)
+            my_bigs = bigs.mine(db, g.user['id'])
+        ready_bigs = [item for item in my_bigs if item['lead'] and bigs.ready(item)]
+        return render_template('mine.html', groups=groups, my_bigs=my_bigs, ready=bigs.ready, ready_bigs=ready_bigs)
 
     @app.route('/tasks/new', methods=['GET', 'POST'])
     @login_required
@@ -426,6 +436,7 @@ def create_app(config=None):
             bundles = progress.team_bundles(db)
             interests = [row['tag'] for row in db.execute('SELECT tag FROM interests WHERE user_id=? ORDER BY rowid', (g.user['id'],))]
             title_board = titles.board(db, g.user['id'])
+            big_credits = bigs.credits(db, g.user['id'])
             first_task = db.execute('SELECT task_id FROM honors WHERE user_id=? ORDER BY awarded_at,task_id LIMIT 1',
                                     (g.user['id'],)).fetchone()
             # 还没拿到的勋章，告诉他现在有几个任务能拿到
@@ -455,7 +466,7 @@ def create_app(config=None):
                               task=url_for('detail', task_id=award['task_id'])) for award in got])
         return render_template('honors.html', awards=awards, by_key=by_key, featured=featured, plate_medals=plate_medals,
                                stats=stats, team=team, bundles=bundles, rows=progress.ROWS, case=case, interests=interests,
-                               title_board=title_board, term=recap.term_of(datetime.now(timezone.utc)),
+                               title_board=title_board, term=recap.term_of(datetime.now(timezone.utc)), big_credits=big_credits,
                                my_build=shown_builds.get(g.user['id']))
 
     @app.post('/honors/title')
@@ -506,14 +517,18 @@ def create_app(config=None):
                 WHERE h.user_id=? AND h.seen_at IS NULL ORDER BY h.awarded_at,h.task_id LIMIT 12""", (g.user['id'],)).fetchall()
             db.executemany('UPDATE honors SET seen_at=? WHERE task_id=? AND user_id=?',
                            [(now(), row['task_id'], g.user['id']) for row in awards])
+            fresh_bigs = bigs.take_unseen(db, g.user['id'])
             after = progress.person_progress(db, g.user['id'])
             titles_before = db.execute('SELECT COUNT(*) FROM titles_seen WHERE user_id=?', (g.user['id'],)).fetchone()[0]
             fresh_titles = titles.take_unseen(db, g.user['id'])
+            bigs_after = db.execute('SELECT COUNT(*) FROM big_credits WHERE user_id=?', (g.user['id'],)).fetchone()[0]
         # 这一批之前是什么样：用来算"第一枚""新种类""凑齐一行""全收集""升级"这些要放大庆祝的时刻
         counts = dict(after['counts'])
         for row in awards:
             counts[row['medal_key']] -= 1
-        xp_before = after['xp'] - sum(task_xp(row['medal_key']) + row['bonus'] for row in awards)
+        xp_before = after['xp'] - sum(task_xp(row['medal_key']) + row['bonus'] for row in awards) \
+            - sum(item['bonus'] for item in fresh_bigs)
+        bigs_before = bigs_after - len(fresh_bigs)
         total_before = after['total'] - len(awards)
         items = []
         for index, row in enumerate(awards):
@@ -532,10 +547,114 @@ def create_app(config=None):
         counts_before = dict(after['counts'])
         for row in awards:
             counts_before[row['medal_key']] -= 1
-        return jsonify(awards=items, before=progress.level_info(xp_before),
-                       unlocks=unlocks.opened_by(counts_before, after['counts'], titles_before, titles_before + len(fresh_titles)),
+        together = [dict(big_id=item['big_id'], title=item['title'], owner=item['owner_name'], closing=item['closing'],
+                         lead=bool(item['lead']), pieces=item['pieces'], people=item['people'], names=item['names'][:8],
+                         xp=item['bonus'], mosaic=render_template_string(MOSAIC, tiles=item['tiles'], cls='m-cer'),
+                         opens=unlocks.opened_by(after['counts'], after['counts'], titles_before, titles_before,
+                                                 bigs_before + index, bigs_before + index + 1))
+                    for index, item in enumerate(fresh_bigs)]
+        return jsonify(awards=items, bigs=together, before=progress.level_info(xp_before),
+                       unlocks=unlocks.opened_by(counts_before, after['counts'], titles_before, titles_before + len(fresh_titles),
+                                                 bigs_before, bigs_after),
                        titles=[dict(key=t['key'], name=t['name'], how=t['how'], color=t['color']) for t in fresh_titles],
                        after={k: after[k] for k in ('xp', 'level', 'name', 'into', 'span', 'to_next', 'percent', 'kinds', 'complete')})
+
+    # ---------------- 大任务：分成几份分工，好几个人一起做；分工就是普通的小任务 ----------------
+    MOSAIC = "{% from 'components/bigs.html' import mosaic %}{{ mosaic(tiles, cls) }}"
+
+    def piece_rows(form):
+        fields = ('title', 'tag', 'kind', 'note')
+        columns = [form.getlist(f'piece_{name}') for name in fields]
+        return [dict(zip(fields, values)) for values in zip_longest(*columns, fillvalue='')]
+
+    @app.get('/big')
+    @login_required
+    def big_list():
+        with database() as db:
+            active = bigs.listing(db, g.user['id'])
+            done = bigs.listing(db, g.user['id'], 'done')
+        return render_template('big_list.html', active=active, done=done, ready=bigs.ready)
+
+    @app.route('/big/new', methods=['GET', 'POST'])
+    @login_required
+    def new_big():
+        rows = piece_rows(request.form)
+        if request.method == 'POST':
+            try:
+                big_id = bigs.create(app.config['DATABASE'], g.user['id'], request.form, rows, g.tz)
+                flash('大任务发起了，分工已经出现在「发现」里。', 'success')
+                return redirect(url_for('big_detail', big_id=big_id))
+            except InvalidAction as error:
+                flash(str(error), 'error')
+        with database() as db:
+            team_tags = tags.listing(db)
+            projects = [row['project'] for row in db.execute('''SELECT project FROM tasks WHERE project IS NOT NULL
+                UNION SELECT project FROM big_tasks WHERE project IS NOT NULL ORDER BY 1''')]
+        rows = [row for row in rows if any(row.values())]
+        rows += [dict(title='', tag='', kind='standard-normal', note='')] * max(0, 3 - len(rows))
+        return render_template('big_new.html', team_tags=team_tags, projects=projects, rows=rows,
+                               min_pieces=bigs.MIN_PIECES, max_pieces=bigs.MAX_PIECES, bonus=bigs.BONUS)
+
+    @app.get('/big/<int:big_id>')
+    @login_required
+    def big_detail(big_id):
+        with database() as db:
+            big = db.execute('SELECT b.*,u.name owner_name FROM big_tasks b JOIN users u ON u.id=b.owner_id WHERE b.id=?',
+                             (big_id,)).fetchone()
+            if not big:
+                abort(404)
+            pieces = db.execute('''SELECT t.*,u.name owner_name,a.name assignee_name FROM tasks t JOIN users u ON u.id=t.owner_id
+                LEFT JOIN users a ON a.id=t.assignee_id WHERE t.big_id=? ORDER BY t.id''', (big_id,)).fetchall()
+            tags_of = discover.tags_by_task(db, [piece['id'] for piece in pieces])
+            tiles = bigs.tiles_by_big(db, [big_id], g.user['id'])[big_id]
+            crew = bigs.crew_by_big(db, [big_id])[big_id]
+            credited = {row['user_id']: dict(row) for row in db.execute('SELECT * FROM big_credits WHERE big_id=?', (big_id,))}
+            events = bigs.timeline(db, big_id)
+            team_tags = tags.names(db)
+        state = dict(total=len(pieces), done=sum(p['status'] == 'done' for p in pieces),
+                     open=sum(p['status'] == 'open' for p in pieces), busy=sum(p['status'] in ('active', 'review') for p in pieces))
+        return render_template('big.html', big=big, pieces=pieces, tags_of=tags_of, tiles=tiles, crew=crew, state=state,
+                               credited=credited, events=events, team_tags=team_tags,
+                               lead=big['owner_id'] == g.user['id'], joined=any(c['id'] == g.user['id'] for c in crew),
+                               bonus=bigs.BONUS, closing_options=bigs.CLOSING, big_events=bigs.EVENTS)
+
+    def big_action(big_id, action, message, anchor=''):
+        try:
+            action()
+            flash(message, 'success')
+        except InvalidAction as error:
+            flash(str(error), 'error')
+        return redirect(url_for('big_detail', big_id=big_id) + anchor)
+
+    @app.post('/big/<int:big_id>/join')
+    @login_required
+    def join_big(big_id):
+        return big_action(big_id, lambda: bigs.join(app.config['DATABASE'], big_id, g.user['id']),
+                          '加入了。这里的分工会优先推荐给你。')
+
+    @app.post('/big/<int:big_id>/leave')
+    @login_required
+    def leave_big(big_id):
+        return big_action(big_id, lambda: bigs.leave(app.config['DATABASE'], big_id, g.user['id']), '已经退出。')
+
+    @app.post('/big/<int:big_id>/piece')
+    @login_required
+    def add_big_piece(big_id):
+        row = {key: request.form.get(key, '') for key in ('title', 'tag', 'kind', 'note', 'deadline')}
+        return big_action(big_id, lambda: bigs.add_piece(app.config['DATABASE'], big_id, g.user['id'], row, g.tz),
+                          f'加了一份分工「{row["title"].strip()}」。', '#pieces')
+
+    @app.post('/big/<int:big_id>/comment')
+    @login_required
+    def comment_big(big_id):
+        return big_action(big_id, lambda: bigs.comment(app.config['DATABASE'], big_id, g.user['id'], request.form.get('body', '')),
+                          '发表了。', '#talk')
+
+    @app.post('/big/<int:big_id>/close')
+    @login_required
+    def close_big(big_id):
+        return big_action(big_id, lambda: bigs.close(app.config['DATABASE'], big_id, g.user['id'], request.form.get('body', '')),
+                          '收尾了！做完分工的人和你，信箱里各多了一份合力纪念。')
 
     # ---------------- 縁側（游戏角）：全都随便玩；勋章解锁积木的颜色和零件、游戏的玩法和印章，解锁了就一直在 ----------------
     def json_error(error):
@@ -745,6 +864,11 @@ def create_app(config=None):
                 JOIN users u ON u.id=t.owner_id LEFT JOIN users a ON a.id=t.assignee_id WHERE t.id=?''', (task_id,)).fetchone()
             if not task:
                 abort(404)
+            big = None
+            if task['big_id']:
+                big = db.execute('SELECT b.*,u.name owner_name FROM big_tasks b JOIN users u ON u.id=b.owner_id WHERE b.id=?',
+                                 (task['big_id'],)).fetchone()
+                big = dict(big, tiles=bigs.tiles_by_big(db, [big['id']], g.user['id'])[big['id']])
             events = db.execute('SELECT e.*,u.name FROM events e JOIN users u ON u.id=e.user_id WHERE task_id=? ORDER BY e.id', (task_id,)).fetchall()
             award = db.execute('SELECT * FROM honors WHERE task_id=?', (task_id,)).fetchone()
             tags = discover.tags_by_task(db, [task_id])[task_id]
@@ -759,12 +883,13 @@ def create_app(config=None):
                 (award['user_id'], award['awarded_at'], award['awarded_at'], task_id)).fetchone()
             why = []
             if task['status'] == 'open' and task['owner_id'] != g.user['id']:
-                why = next((pick['reasons'] for pick in discover.recommend(db, g.user['id'], limit=100)
+                # 详情页按分量从高到低说理由（推荐卡上为了三张不重样，第一句会换）
+                why = next((pick['ranked'] for pick in discover.recommend(db, g.user['id'], limit=100)
                             if pick['task']['id'] == task_id), [])
         feedback = session.pop('task_feedback', None)
         if feedback and feedback['task_id'] != task_id:
             feedback = None
-        return render_template('detail.html', task=task, events=events, award=award, feedback=feedback, tags=tags,
+        return render_template('detail.html', task=task, events=events, award=award, feedback=feedback, tags=tags, big=big,
                                claps=claps, new_kind=medal_key(task) not in earned, why=why[:3], first_timer=first_timer,
                                debut=debut)
 

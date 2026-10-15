@@ -2,6 +2,7 @@
 {% from 'components/icon.html' import icon %}
 {% from 'components/medal.html' import medal %}
 {% from 'components/ui.html' import ava, csrf %}
+{% from 'components/bigs.html' import mosaic %}
 {% block title %}{{ task.title }} · 結 YUI{% endblock %}
 {% block body_class %}page-detail{% endblock %}
 {% block content %}
@@ -9,12 +10,20 @@
 {% set hue = medals[key].hue %}
 {% set owner = task.owner_id == g.user.id %}
 {% set assignee = task.assignee_id == g.user.id %}
+{% set lead = big and big.owner_id == g.user.id %}
+{# 验收的人：发布者，或者大任务的牵头人（自己接的那份除外） #}
+{% set checker = (owner or lead) and not assignee %}
 {% set left = due_label(task.deadline) %}
 {% set order = ['open', 'active', 'review', 'done'] %}
 {% set step = order.index(task.status) %}
 {% set returns = events|selectattr('kind', 'equalto', 'return')|list %}
 <div class="wrap detail">
-  <a class="back" href="{{ url_for('index') }}">{{ icon('back') }}回到发现</a>
+  <a class="back" href="{{ url_for('big_detail', big_id=big.id) if big else url_for('index') }}">{{ icon('back') }}{{ '回到大任务' if big else '回到发现' }}</a>
+  {% if big %}{% set done_n = big.tiles|selectattr('state', 'equalto', 'done')|list|length %}
+  <a class="big-crumb" href="{{ url_for('big_detail', big_id=big.id) }}">{{ mosaic(big.tiles, 'm-crumb') }}
+    <span><small>大任务的一份分工 · {{ big.owner_name }} 牵头</small><b>{{ big.title }}</b></span>
+    <em class="num">{{ done_n }} / {{ big.tiles|length }} 份完成</em>{{ icon('arrow') }}</a>
+  {% endif %}
 
   <section class="qband" style="--hue:{{ hue }};--on:{{ '#1B1D2A' if hue in ('#F2B700', '#F39800', '#00AEE0') else '#fff' }}">
     <svg class="pick-art" viewBox="0 0 400 180" preserveAspectRatio="xMaxYMid slice" aria-hidden="true"><path d="M300 180 360 40H400V180Z" fill="#fff"/><path d="M268 180 328 40" stroke="#1B1D2A" stroke-width="8" stroke-linecap="round"/><circle cx="236" cy="58" r="11" fill="#1B1D2A"/></svg>
@@ -50,12 +59,12 @@
       </section>
       {% endif %}
       <section class="block panel"><h2 class="sec">委托人说</h2>
-        <p class="ask">{{ task.description }}<cite>{{ task.owner_name }} · {{ task.created_at|md }} 发布</cite></p>
+        <p class="ask">{{ task.description or '这是大任务「' ~ big.title ~ '」的一份分工。具体怎么做，可以在下面的讨论区问 ' ~ task.owner_name ~ '。' }}<cite>{{ task.owner_name }} · {{ task.created_at|md }} 发布</cite></p>
       </section>
       <section class="rules panel">
-        <div><h2 class="sec">交付要求</h2><p>{{ task.requirements }}</p>
+        <div><h2 class="sec">交付要求</h2><p>{% if task.requirements %}{{ task.requirements }}{% else %}按大任务的目标来：{{ big.goal }}{% endif %}</p>
           {% if tags %}<div class="tags" style="margin-top:12px">{% for tag in tags %}<a class="tag" href="{{ url_for('index', tag=tag) }}">{{ tag }}</a>{% endfor %}</div>{% endif %}</div>
-        <div><h2 class="sec">验收规则</h2><ul><li>不通过时，委托人必须写明原因</li><li>任务回到「进行中」，改好后再次提交</li><li>验收通过后，勋章和经验自动给认领人</li></ul></div>
+        <div><h2 class="sec">验收规则</h2><ul><li>不通过时，委托人必须写明原因</li><li>任务回到「进行中」，改好后再次提交</li><li>验收通过后，勋章和经验自动给认领人</li>{% if big %}<li>大任务的牵头人 {{ big.owner_name }} 也可以验收</li>{% endif %}</ul></div>
       </section>
       <section class="block panel"><h2 class="sec">动态与讨论<span>{{ events|length }}</span></h2>
         {% if events %}
@@ -77,7 +86,7 @@
     <aside class="dside">
       {% if feedback %}
       {% set lines = {
-        'claim': ('认领', '已认领 · ' ~ (task.assignee_name or g.user.name) ~ '，开工！', '截止前提交成果；做不完记得在讨论区说一声。'),
+        'claim': ('认领', '已认领 · ' ~ (task.assignee_name or g.user.name) ~ '，开工！', ('你也加入了大任务「' ~ big.title ~ '」。' if big else '') ~ '截止前提交成果；做不完记得在讨论区说一声。'),
         'submit': ('提交', '已提交 · 等 ' ~ task.owner_name ~ ' 验收', task.assignee_name ~ ' 的成果已经送到，验收通过就能拿到勋章。'),
         'return': ('退回', '已退回给 ' ~ task.assignee_name, '原因写在动态里，' ~ task.assignee_name ~ ' 改好会再提交。'),
         'accept': ('通过', '验收通过 · 勋章已授予 ' ~ task.assignee_name, task.assignee_name ~ ' 下次打开信箱就能看到你的夸奖。'),
@@ -104,7 +113,7 @@
         <button class="btn">提交给 {{ task.owner_name }} 验收</button>
         <div class="ghost-medal">{{ medal(key, ghost=true) }}验收通过后，这枚勋章才会变成你的。</div>
       </form>
-      {% elif task.status == 'review' and owner %}
+      {% elif task.status == 'review' and checker %}
       <div class="act panel">
         <h3>验收 {{ task.assignee_name }} 的成果</h3>
         {% if first_timer %}<div class="first-timer"><span class="hanko n1" style="--c:#E54465"><i>初</i></span><p>这是 <b>{{ task.assignee_name }}</b> 的第一个任务。验收时多说一句鼓励吧，这句话会刻在 TA 第一枚勋章的背面。</p></div>{% endif %}
@@ -123,7 +132,7 @@
       <div class="act panel">
         <h3>{% if task.status == 'active' %}{{ task.assignee_name }} 正在做{% else %}等 {{ task.owner_name }} 验收{% endif %}</h3>
         <p>{% if assignee %}已经提交，验收通过后勋章和 {{ offer_xp(task) }} 经验会进你的信箱。{% else %}有问题可以在讨论区留言。{% endif %}</p>
-        {% if first_timer and owner %}<div class="first-timer"><span class="hanko n1" style="--c:#E54465"><i>初</i></span><p>这是 <b>{{ task.assignee_name }}</b> 的第一个任务，有空的话在讨论区给点提示。</p></div>{% endif %}
+        {% if first_timer and checker %}<div class="first-timer"><span class="hanko n1" style="--c:#E54465"><i>初</i></span><p>这是 <b>{{ task.assignee_name }}</b> 的第一个任务，有空的话在讨论区给点提示。</p></div>{% endif %}
         {% if assignee %}<div class="ghost-medal">{{ medal(key, ghost=true) }}这枚还是虚线的，验收通过就变实心。</div>{% endif %}
       </div>
       {% else %}

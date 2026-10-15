@@ -66,6 +66,33 @@ def parse_tags(raw, limit=MAX_TAGS, noun='标签'):
     return tags
 
 
+def parse_deadline(raw, tz=None):
+    """A future moment as a UTC string; a value typed without an offset is wall-clock time in tz (the team zone by default)."""
+    try:
+        deadline = datetime.fromisoformat(raw or '')
+        if deadline.tzinfo is None:
+            deadline = deadline.replace(tzinfo=tz or TEAM_TZ)
+        deadline = deadline.astimezone(timezone.utc).isoformat(timespec='seconds')
+        if deadline <= now():
+            raise ValueError()
+    except (ValueError, OverflowError):
+        raise InvalidAction('请选择一个还没到的截止时间。')
+    return deadline
+
+
+def insert_task(db, user_id, title, description, requirements, tags, project, importance, urgency, deadline, big_id=None):
+    cursor = db.execute('''INSERT INTO tasks
+        (title,description,category,project,importance,urgency,deadline,requirements,owner_id,created_at,big_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
+        (title, description, tags[0], project or None, importance, urgency, deadline, requirements, user_id, now(), big_id))
+    db.executemany('INSERT INTO task_tags (task_id,tag) VALUES (?,?)', [(cursor.lastrowid, tag) for tag in tags])
+    # 发布者写了表里没有的标签：加进团队的标签表末尾，之后团队成员可以写说明、合并或删掉
+    for tag in tags:
+        db.execute('''INSERT OR IGNORE INTO org_tags (name,position,created_by,created_at)
+            SELECT ?,COALESCE(MAX(position),0)+1,?,? FROM org_tags''', (tag, user_id, now()))
+    return cursor.lastrowid
+
+
 def create_task(path, user_id, data, tz=None):
     """tz: the publisher's zone; a deadline typed without an offset means their own wall-clock time."""
     title = required(data, 'title', '标题', 120)
@@ -82,26 +109,9 @@ def create_task(path, user_id, data, tz=None):
         raise InvalidAction('项目名不能超过 30 个字。')
     if importance not in IMPORTANCE or urgency not in URGENCY:
         raise InvalidAction('请选择有效的任务分量和紧急程度。')
-    try:
-        deadline = datetime.fromisoformat(data.get('deadline', ''))
-        if deadline.tzinfo is None:
-            deadline = deadline.replace(tzinfo=tz or TEAM_TZ)
-        deadline = deadline.astimezone(timezone.utc).isoformat(timespec='seconds')
-        if deadline <= now():
-            raise ValueError()
-    except (ValueError, OverflowError):
-        raise InvalidAction('请选择一个还没到的截止时间。')
+    deadline = parse_deadline(data.get('deadline'), tz)
     with connect(path, write=True) as db:
-        cursor = db.execute('''INSERT INTO tasks
-            (title,description,category,project,importance,urgency,deadline,requirements,owner_id,created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?)''',
-            (title, description, tags[0], project or None, importance, urgency, deadline, requirements, user_id, now()))
-        db.executemany('INSERT INTO task_tags (task_id,tag) VALUES (?,?)', [(cursor.lastrowid, tag) for tag in tags])
-        # 发布者写了表里没有的标签：加进团队的标签表末尾，之后团队成员可以写说明、合并或删掉
-        for tag in tags:
-            db.execute('''INSERT OR IGNORE INTO org_tags (name,position,created_by,created_at)
-                SELECT ?,COALESCE(MAX(position),0)+1,?,? FROM org_tags''', (tag, user_id, now()))
-        return cursor.lastrowid
+        return insert_task(db, user_id, title, description, requirements, tags, project, importance, urgency, deadline)
 
 
 def act(path, task_id, user_id, action, body=''):
@@ -115,20 +125,26 @@ def act(path, task_id, user_id, action, body=''):
         owner = task['owner_id'] == user_id
         assignee = task['assignee_id'] == user_id
         status = task['status']
+        # 大任务的分工：牵头人也能验收（除了自己接的那份）
+        lead = bool(task['big_id']) and bool(db.execute('SELECT 1 FROM big_tasks WHERE id=? AND owner_id=?',
+                                                        (task['big_id'], user_id)).fetchone())
         if action == 'claim':
             if owner or status != 'open' or task['deadline'] <= now():
                 raise InvalidAction('无法认领：任务已被认领、已截止，或由你发布。')
             # 认领那一刻就定下是不是冷门，之后再怎么退回都不变
             db.execute("UPDATE tasks SET assignee_id=?, status='active', cold=? WHERE id=?",
                        (user_id, int(waited_days(task) >= COLD_DAYS), task_id))
+            if task['big_id']:   # 接了一份分工，就算加入了这个大任务
+                db.execute('INSERT OR IGNORE INTO big_members (big_id,user_id,joined_at) VALUES (?,?,?)',
+                           (task['big_id'], user_id, now()))
             body = '已认领，开始处理。'
         elif action == 'submit':
             if not assignee or status != 'active' or not body:
                 raise InvalidAction('仅认领人可提交进行中的任务，成果说明不能为空。')
             db.execute("UPDATE tasks SET status='review' WHERE id=?", (task_id,))
         elif action in ('accept', 'return'):
-            if not owner or status != 'review':
-                raise InvalidAction('仅发布者可验收待验收的任务。')
+            if not (owner or lead) or assignee or status != 'review':
+                raise InvalidAction('仅发布者（或大任务的牵头人）可验收待验收的任务。')
             if action == 'return' and not body:
                 raise InvalidAction('请填写退回原因。')
             db.execute('UPDATE tasks SET status=? WHERE id=?', ('done' if action == 'accept' else 'active', task_id))
