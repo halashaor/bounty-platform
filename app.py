@@ -149,8 +149,7 @@ def create_app(config=None):
                                  task_xp=progress.task_xp, praise_options=PRAISE, due_label=due_label, tag_look=tag_look,
                                  max_interests=MAX_INTERESTS, local_now=lambda: datetime.now(g.tz), offer_xp=offer_xp,
                                  cold_days=cold_days, is_cold=is_cold, title_names=titles.BY_KEY,
-                                 block_data=blocks.page_data(),
-                                 big_grid=teams.grid)
+                                 block_data=blocks.page_data())
 
     def page_url(**changes):
         """Same page, same filters, with a few changed; empty values drop out of the URL."""
@@ -835,8 +834,7 @@ def create_app(config=None):
             if task['parent_id']:
                 big = db.execute('''SELECT t.*,u.name owner_name FROM tasks t JOIN users u ON u.id=t.owner_id WHERE t.id=?''',
                                  (task['parent_id'],)).fetchone()
-                big = dict(big, members=teams.members_by_task(db, [big['id']])[big['id']],
-                           tiles=teams.tiles_by_parent(db, [big['id']], g.user['id'])[big['id']])
+                big = dict(big, members=teams.members_by_task(db, [big['id']])[big['id']])
             # 大任务：一起做的人、拆出来的分工、这次发了勋章的人
             members = teams.members_by_task(db, [task_id])[task_id] if team else []
             pieces = db.execute('''SELECT t.*,u.name owner_name,a.name assignee_name FROM tasks t JOIN users u ON u.id=t.owner_id
@@ -856,7 +854,6 @@ def create_app(config=None):
                 'SELECT 1 FROM honors WHERE user_id=? AND (awarded_at<? OR (awarded_at=? AND task_id<?))',
                 (award['user_id'], award['awarded_at'], award['awarded_at'], task_id)).fetchone()
             piece_tags = discover.tags_by_task(db, [piece['id'] for piece in pieces])
-            tiles = teams.tiles_by_parent(db, [task_id], g.user['id'])[task_id] if team else []
             team_tags = [row[0] for row in db.execute('SELECT name FROM org_tags ORDER BY position,name')] if team else []
             why = []
             if task['owner_id'] != g.user['id'] and (task['status'] == 'open' or team and task['status'] == 'active'):
@@ -873,8 +870,7 @@ def create_app(config=None):
                                claps=claps, new_kind=medal_key(task) not in earned, why=why[:3], first_timer=first_timer and not team,
                                debut=debut and not team, team=team, members=members, member=member, seat_open=seat_open,
                                pieces=pieces, piece_tags=piece_tags, team_tags=team_tags, credited=credited,
-                               pieces_busy=sum(piece['status'] in ('active', 'review') for piece in pieces),
-                               tiles=tiles)
+                               pieces_busy=sum(piece['status'] in ('active', 'review') for piece in pieces))
 
     @app.post('/tasks/<int:task_id>/clap')
     @login_required

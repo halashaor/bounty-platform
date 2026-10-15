@@ -2,7 +2,7 @@
 {% from 'components/icon.html' import icon %}
 {% from 'components/medal.html' import medal %}
 {% from 'components/ui.html' import ava, csrf %}
-{% from 'components/team.html' import seats, crew_text, tile %}
+{% from 'components/team.html' import seats, crew_text, crew_art %}
 {% block title %}{{ task.title }} · 結 YUI{% endblock %}
 {% block body_class %}page-detail{% endblock %}
 {% block content %}
@@ -28,7 +28,8 @@
   {% endif %}
 
   <section class="qband" style="--hue:{{ hue }};--on:{{ '#1B1D2A' if hue in ('#F2B700', '#F39800', '#00AEE0') else '#fff' }}">
-    <svg class="pick-art" viewBox="0 0 400 180" preserveAspectRatio="xMaxYMid slice" aria-hidden="true"><path d="M300 180 360 40H400V180Z" fill="#fff"/><path d="M268 180 328 40" stroke="#1B1D2A" stroke-width="8" stroke-linecap="round"/><circle cx="236" cy="58" r="11" fill="#1B1D2A"/></svg>
+    {% if team %}{{ crew_art(task, members|length, 'qband-crew', 'xMaxYMin meet') }}{% else %}
+    <svg class="pick-art" viewBox="0 0 400 180" preserveAspectRatio="xMaxYMid slice" aria-hidden="true"><path d="M300 180 360 40H400V180Z" fill="#fff"/><path d="M268 180 328 40" stroke="#1B1D2A" stroke-width="8" stroke-linecap="round"/><circle cx="236" cy="58" r="11" fill="#1B1D2A"/></svg>{% endif %}
     <div>
       {% if team %}<span class="sticker team-sticker" style="--sticker:#1B1D2A"><i></i>大任务 · 好几个人一起做</span>{% endif %}
       {% if task.status == 'open' and new_kind and not owner %}<span class="sticker" style="--sticker:#F39800"><i></i>能解锁「{{ medals[key].name }}」</span>{% endif %}
@@ -80,7 +81,7 @@
         <ol class="share-list">
           {% for piece in pieces %}{% set mine = piece.assignee_id == g.user.id %}{% set pkey = medal_key(piece) %}
           <li class="share {{ piece.status }}">
-            {{ tile(piece, mine) }}
+            {{ medal(pkey, 'share-medal', ghost=piece.status == 'open') }}
             <div class="share-main">
               <a href="{{ url_for('detail', task_id=piece.id) }}"><b>{{ piece.title }}</b></a>
               <small>{% for t in piece_tags[piece.id] %}#{{ t }} {% endfor %}· {{ effort_labels[piece.importance] }}{% if piece.urgency == 'urgent' %} · 加急{% endif %} · 得「{{ medals[pkey].name }}」+{{ offer_xp(piece) }} · {{ piece.owner_name }} 拆的</small>

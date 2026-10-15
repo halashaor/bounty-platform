@@ -150,6 +150,7 @@ html:not([data-motion="off"]) .bundle .piece.on{animation:assemble 640ms var(--a
 .back svg{width:16px;height:16px}
 .qband{position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:28px;align-items:end;padding:30px 34px 28px;border-radius:26px;background:var(--hue);color:var(--on,#fff)}
 .qband>.pick-art{position:absolute;inset:0;z-index:0}
+.qband>.qband-crew{inset:0 200px 0 auto;width:min(560px,62%);height:100%}
 .qband>*{position:relative;z-index:1}
 .qband .sticker{margin-bottom:10px}
 .qband h1{font-size:34px;line-height:1.3;margin:6px 0;overflow-wrap:anywhere}
@@ -395,6 +396,8 @@ html:not([data-motion="off"]) .compose .pc{animation:assemble 640ms var(--arrive
   .dgrid,.compose{grid-template-columns:minmax(0,1fr)}
   .dside,.preview-col{position:static}
   .qband{grid-template-columns:minmax(0,1fr)}
+  .qband>.qband-crew{inset:0 0 auto auto;width:100%;height:120px}
+  .qband:has(>.qband-crew){padding-top:104px}
   .qband-reward{justify-items:start;grid-template-columns:auto 1fr;text-align:left;align-items:center}
   .wall-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .auth{grid-template-columns:minmax(0,1fr)}
@@ -413,7 +416,7 @@ html:not([data-motion="off"]) .compose .pc{animation:assemble 640ms var(--arrive
   .team{grid-template-columns:minmax(0,1fr)}
   .cards{grid-template-columns:minmax(0,1fr)}
   .qband{padding:22px 20px;border-radius:22px}
-  .qband>.pick-art{display:none}
+  .qband>.pick-art:not(.qband-crew){display:none}
   .qband h1{font-size:26px}
   .qband-reward .medal{width:84px;height:84px}
   .flow{padding:16px 10px}
@@ -1217,8 +1220,8 @@ a.mode:active{transform:scale(.98)}
 .tag-row-form{display:grid;grid-template-columns:200px minmax(0,1fr) auto;gap:10px}
 .tag-row-form input,.tag-edit input{height:40px!important}
 .tag-rows{display:grid;gap:8px}
-.tag-row{display:grid;grid-template-columns:28px minmax(0,1fr) auto;grid-template-areas:"pos edit tools" ". use use";gap:4px 12px;align-items:center;padding:10px 12px;border-radius:14px;background:var(--ground);scroll-margin-top:calc(var(--top) + 20px)}
-.tag-row:target{box-shadow:0 0 0 2px var(--yellow)}
+.tag-entry{display:grid;grid-template-columns:28px minmax(0,1fr) auto;grid-template-areas:"pos edit tools" ". use use";gap:4px 12px;align-items:center;padding:10px 12px;border-radius:14px;background:var(--ground);scroll-margin-top:calc(var(--top) + 20px)}
+.tag-entry:target{box-shadow:0 0 0 2px var(--yellow)}
 .tag-pos{grid-area:pos;font-weight:800;color:var(--faint);text-align:center}
 .tag-edit{grid-area:edit;display:grid;grid-template-columns:110px minmax(0,1.3fr) minmax(0,1fr) auto;gap:8px;align-items:center}
 .tag-name{font-size:15px;overflow-wrap:anywhere}
@@ -1231,7 +1234,7 @@ a.mode:active{transform:scale(.98)}
 .tags-loose .chips form{display:contents}
 @media(max-width:760px){
   .tag-row-form{grid-template-columns:minmax(0,1fr)}
-  .tag-row{grid-template-columns:24px minmax(0,1fr);grid-template-areas:"pos edit" ". use" ". tools"}
+  .tag-entry{grid-template-columns:24px minmax(0,1fr);grid-template-areas:"pos edit" ". use" ". tools"}
   .tag-edit{grid-template-columns:minmax(0,1fr)}
   .team-tags .panel{padding:18px 16px}
 }
@@ -1241,18 +1244,6 @@ a.mode:active{transform:scale(.98)}
 }
 
 /* ================= 大任务 ================= */
-/* 拆出来的分工拼成一张图：做完的填勋章色，有人在做的描边，等人接的是虚线；--m-empty / --m-dash 跟着底色换 */
-.mosaic{display:block;overflow:visible;--m-empty:#EEF0F3;--m-dash:#B4B7C1}
-.mosaic .mt .bg{fill:var(--m-empty);stroke:var(--m-dash);stroke-width:1.4;stroke-dasharray:3.2 3.2}
-.mosaic .mt .k,.mosaic .mt .w{fill:var(--m-dash)}
-.mosaic .mt.busy .bg{stroke:var(--c);stroke-width:2.6;stroke-dasharray:none}
-.mosaic .mt.busy .k,.mosaic .mt.busy .w{fill:var(--c);opacity:.55}
-.mosaic .mt.done .bg{fill:var(--c);stroke:none}
-.mosaic .mt.done .w{fill:#fff}
-.mosaic .mt.done .k{fill:#1B1D2A}
-.mosaic .mt-me{fill:#fff;stroke:#1B1D2A;stroke-width:1.6}
-.bigcard-art .mosaic{--m-empty:rgba(255,255,255,.05);--m-dash:rgba(255,255,255,.32)}
-
 /* 发布页上面的切换：小任务 / 大任务。选了大任务才露出 .team-only 的那几栏 */
 .kind-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;border-radius:18px;background:var(--ground)}
 .kind-switch label{position:relative;display:grid;padding:9px 16px;border-radius:14px;text-align:center;line-height:1.45;cursor:pointer;transition:background 160ms,color 160ms}
@@ -1272,65 +1263,31 @@ a.mode:active{transform:scale(.98)}
 
 /* 任务卡标题上的一行小字：大任务，或者属于哪个大任务 */
 .bigtag{display:flex;align-items:center;gap:6px;min-width:0;margin-bottom:3px;font-size:12px;font-weight:800;line-height:1.5;color:var(--ink-2)}
-.bigtag svg{width:12px;height:12px;flex:none;fill:var(--line-2)}
-.bigtag svg .on{fill:var(--ink)}
+.crew-dots{width:22px;height:10px;flex:none;overflow:visible}
+.crew-dots path{stroke:var(--line-2);stroke-width:2;stroke-linecap:round}
+.crew-dots circle{fill:var(--line-2)}
+.crew-dots .k{fill:var(--ink)}
 .mrow-main .bigtag{margin-bottom:0}
 
-/* 首页：大任务一排，夜色底 */
-.bigband{margin-bottom:30px;padding:22px 24px 24px;border-radius:28px;background:#1B1D2A radial-gradient(rgba(255,255,255,.07) 1.2px,transparent 1.7px) 0 0/22px 22px;color:#fff}
-.bigband .sec-head{align-items:center}
-.bigband .sec-head small{color:rgba(255,255,255,.62)}
-.bigband .sec-head .right{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:800;white-space:nowrap}
-.bigband .sec-head .right svg{width:16px;height:16px;transition:transform 220ms var(--pop)}
-.bigband .sec-head .right:hover svg{transform:translateX(3px)}
-.bigband.quiet{padding:16px 24px}
-.bigband.quiet .sec-head{margin:0}
-.big-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
-.bigcard-new{display:grid;place-content:center;justify-items:center;gap:6px;padding:24px;border-radius:22px;border:1.5px dashed rgba(255,255,255,.28);color:rgba(255,255,255,.75);text-align:center;transition:border-color 160ms,color 160ms,background 160ms}
-.bigcard-new:hover{border-color:#fff;color:#fff;background:rgba(255,255,255,.04)}
-.bigcard-new .plus{width:48px;height:48px;display:grid;place-items:center;margin-bottom:6px;border-radius:50%;background:rgba(255,255,255,.1);transition:transform 260ms var(--pop)}
-.bigcard-new:hover .plus{transform:rotate(90deg)}
-.bigcard-new svg{width:22px;height:22px}
-.bigcard-new b{font-size:16px;color:#fff}
-.bigcard-new small{max-width:16em;font-size:12.5px}
-
-/* 大任务卡：上半截夜色，勋章 + 座位（有分工时再加一排拼图） */
-.bigcard{position:relative;display:grid;grid-template-rows:auto 1fr;border-radius:22px;background:var(--paper);color:var(--ink);overflow:hidden;transition:transform 300ms var(--pop),box-shadow 300ms var(--arrive)}
-.bigcard:hover{transform:translateY(-5px);box-shadow:0 12px 0 -6px rgba(27,29,42,.14)}
-.bigcard:active{transform:translateY(-1px) scale(.99);transition-duration:90ms}
-.bigcard>a.cover{position:absolute;inset:0;z-index:1}
-.bigcard-art{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:12px 16px;min-height:124px;padding:20px 22px;background:#1B1D2A radial-gradient(rgba(255,255,255,.07) 1.2px,transparent 1.7px) 0 0/22px 22px;color:#fff}
-.bigcard-medal{width:72px;height:72px;border-radius:50%;box-shadow:0 0 0 4px rgba(255,255,255,.08)}
-.bigcard-crew{display:grid;gap:8px;min-width:0}
-.bigcard-crew small{font-size:12px;font-weight:700;color:rgba(255,255,255,.72)}
-.bigcard-pieces{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding-top:10px;border-top:1px dashed rgba(255,255,255,.14)}
-.bigcard-pieces .mosaic{width:auto;height:24px;max-width:70%}
-.bigcard-pieces small{font-size:11.5px;color:rgba(255,255,255,.6)}
-.bigcard-body{display:grid;align-content:start;gap:5px;padding:16px 20px 18px}
-.bigcard .kicker{display:flex;flex-wrap:wrap;gap:6px;font-size:12px;font-weight:700;color:var(--sub)}
-.bigcard .kicker .soon{color:var(--red-text)}
-.bigcard h3{font-size:18px;line-height:1.4}
-.bigcard .goal{font-size:12.5px;color:var(--sub);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.bigcard-foot{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px;padding-top:10px;border-top:1px solid var(--line);font-size:12px}
-.bigcard-foot .eff{font-weight:800;color:var(--ink-2)}
-.big-flag{font-style:normal;font-size:12px;font-weight:800;padding:0 10px;line-height:24px;border-radius:999px;background:var(--ground);color:var(--ink-2);white-space:nowrap}
-.big-flag.go{margin-left:auto;background:var(--yellow);color:var(--ink)}
-.big-flag.yours{margin-left:auto;background:var(--ink);color:#fff}
-.bigband .bigcard{background:rgba(255,255,255,.06);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
-.bigband .bigcard:hover{background:rgba(255,255,255,.09);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14),0 12px 0 -6px rgba(0,0,0,.3)}
-.bigband .bigcard-art{background:none;padding-bottom:4px}
-.bigband .bigcard :is(.kicker,.goal){color:rgba(255,255,255,.6)}
-.bigband .bigcard .kicker .soon{color:#FF8FA6}
-.bigband .bigcard-foot{border-top-color:rgba(255,255,255,.1)}
-.bigband .bigcard-foot .eff{color:#fff}
-.bigband .big-flag.yours{background:#fff;color:var(--ink)}
+/* 大任务卡：就是推荐卡（.pick），色卡上画一起做的人；首页一排、大任务列表都用 */
+.team-card .pick-foot>em,.team-card .pick-foot>form{margin-left:auto}
+.team-card.done .pick-field{filter:saturate(.85)}
+.big-flag{font-style:normal;font-size:12px;font-weight:800;padding:0 10px;line-height:28px;border-radius:999px;background:var(--ground);color:var(--ink-2);white-space:nowrap}
+.big-flag.yours{background:var(--ink);color:#fff}
+.pick-new{display:grid;place-content:center;justify-items:center;gap:6px;min-height:320px;padding:24px;border-radius:24px;border:1.5px dashed var(--line-2);color:var(--sub);text-align:center;transition:border-color 160ms,color 160ms,background 160ms}
+.pick-new:hover{border-color:var(--ink);color:var(--ink);background:var(--paper)}
+.pick-new .plus{width:52px;height:52px;display:grid;place-items:center;margin-bottom:6px;border-radius:50%;background:var(--ink);color:#fff;transition:transform 260ms var(--pop)}
+.pick-new:hover .plus{transform:rotate(90deg)}
+.pick-new svg{width:22px;height:22px}
+.pick-new b{font-size:16px;color:var(--ink)}
+.pick-new small{max-width:16em;font-size:12.5px}
+.lane-team .shuffle svg{width:16px;height:16px}
 
 /* 座位：一起做的人一人一个头像，空位是虚线圈 */
 .seats{display:inline-flex;align-items:center;flex-wrap:wrap;gap:5px}
 .seats .ava{width:30px;height:30px;font-size:12px;box-shadow:0 0 0 2px var(--seat-ring,#fff)}
 .seat{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:50%;border:1.5px dashed var(--seat-line,var(--line-2));color:var(--seat-line,var(--faint));font:700 15px/1 var(--num);font-style:normal}
 .seat.more{border-style:solid;font-size:11px}
-.bigcard-art .seats{--seat-line:rgba(255,255,255,.42);--seat-ring:rgba(255,255,255,.28)}
 .join-seats{display:grid;gap:8px;padding:12px 14px;border-radius:14px;background:var(--ground)}
 .join-seats small{font-size:12px;font-weight:700;color:var(--sub)}
 .tbl .seats{gap:3px}
@@ -1351,7 +1308,8 @@ a.mode:active{transform:scale(.98)}
 .share-list{display:grid}
 .share{display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
 .share:last-child{border-bottom:0}
-.mosaic.one{width:44px;height:44px}
+.share-medal{width:44px;height:44px}
+.share.open .share-medal{opacity:.9}
 .share-main{min-width:0}
 .share-main b{font-size:15px}
 .share-main a:hover b{text-decoration:underline;text-underline-offset:3px}
@@ -1407,18 +1365,18 @@ a.mode:active{transform:scale(.98)}
 /* 颁奖：大任务的勋章上写明和谁一起做的 */
 .award-team{display:inline-flex;align-items:center;gap:8px;max-width:100%;padding:5px 14px;border-radius:999px;background:var(--ink);color:#fff;font-size:12.5px;font-weight:700}
 .award-team+.award-praise{margin-top:10px}
-.big-dot{width:10px;height:10px;flex:none;border-radius:2px;background:linear-gradient(90deg,#fff 45%,transparent 45% 55%,#fff 55%);opacity:.85}
+.award-team .crew-dots path{stroke:rgba(255,255,255,.55)}
+.award-team .crew-dots circle{fill:rgba(255,255,255,.75)}
+.award-team .crew-dots .k{fill:#fff}
 
 /* 成就：一起完成的大任务 */
 .together{padding:24px 26px}
 .together-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
-.together-list a{display:grid;grid-template-columns:112px minmax(0,1fr);align-items:center;gap:16px;padding:12px;border-radius:18px;background:var(--ground);transition:transform 220ms var(--pop)}
+.together-list a{display:grid;grid-template-columns:150px minmax(0,1fr);align-items:center;gap:16px;padding:12px;border-radius:18px;background:var(--ground);transition:transform 220ms var(--pop)}
 .together-list a:hover{transform:translateY(-3px)}
-.together-art{display:grid;justify-items:center;align-content:center;gap:8px;height:100px;border-radius:12px;background:var(--ink)}
-.together-art .medal{width:48px;height:48px}
-.together-crew{display:flex}
-.together-crew .ava{width:22px;height:22px;font-size:10px;box-shadow:0 0 0 2px var(--ink)}
-.together-crew .ava+.ava{margin-left:-5px}
+.together-art{position:relative;display:block;height:100px;border-radius:12px;background:var(--hue);overflow:hidden}
+.together-art .pick-art{position:absolute;inset:0;width:100%;height:100%}
+.together-art .medal{position:absolute;left:10px;bottom:10px;width:44px;height:44px;border-radius:50%;box-shadow:0 0 0 3px var(--paper)}
 .together-text{display:grid;gap:2px;min-width:0}
 .together-text b{font-size:15px}
 .together-text small{font-size:12px;color:var(--sub)}
@@ -1428,28 +1386,25 @@ a.mode:active{transform:scale(.98)}
 .together .empty{padding:20px}
 
 @media(max-width:1180px){
-  .big-row,.big-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .big-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media(max-width:980px){
-  .big-row{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(270px,80%);overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}
-  .big-row>*{scroll-snap-align:start}
   .together-list{grid-template-columns:minmax(0,1fr)}
 }
 @media(max-width:760px){
-  .bigband{padding:18px 16px;border-radius:22px}
-  .bigband.quiet{padding:14px 16px}
   .big-grid{grid-template-columns:minmax(0,1fr)}
   .bigs-head{flex-direction:column;align-items:stretch}
   .bigs-head h1{font-size:24px}
   .pieces{padding:20px}
   .share{grid-template-columns:40px minmax(0,1fr);align-items:start}
-  .mosaic.one{width:40px;height:40px}
+  .share-medal{width:40px;height:40px}
   .share-state{grid-column:2;justify-content:flex-start}
   .piece-row{grid-template-columns:1fr 1fr}
   .piece-row>input{grid-column:1/-1}
   .big-crumb{grid-template-columns:auto minmax(0,1fr) auto;gap:12px}
   .big-crumb em{display:none}
   .together{padding:20px}
-  .together-list a{grid-template-columns:92px minmax(0,1fr)}
+  .together-list a{grid-template-columns:120px minmax(0,1fr)}
   .together-art{height:84px}
+  .pick-new{min-height:0}
 }

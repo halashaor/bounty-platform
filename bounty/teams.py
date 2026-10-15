@@ -3,9 +3,8 @@
 
 做的过程中随时可以拆出「分工」：分工就是普通小任务（tasks.parent_id 指向大任务），一个人认领、拿自己的勋章；
 接下分工也就加入了大任务。分工不用一开始就拆好，想到再拆，不拆也行。"""
-from math import ceil, sqrt
 from .db import connect
-from .honors import MEDALS, medal_key
+from .honors import MEDALS
 from .service import InvalidAction, insert_task, now, parse_deadline
 
 MAX_PIECES = 30
@@ -63,25 +62,14 @@ def members_by_task(db, task_ids):
     return found
 
 
-def tiles_by_parent(db, task_ids, viewer_id=0):
-    """One mosaic tile per share split off each team task, in the order they were split off."""
-    tiles = {task_id: [] for task_id in task_ids}
+def share_counts(db, task_ids):
+    """(finished, all) shares split off each team task."""
+    counts = {task_id: (0, 0) for task_id in task_ids}
     if task_ids:
-        for row in db.execute(f'''SELECT t.parent_id,t.id,t.title,t.importance,t.urgency,t.status,t.assignee_id,a.name who
-                FROM tasks t LEFT JOIN users a ON a.id=t.assignee_id WHERE t.parent_id IN ({','.join('?' * len(task_ids))})
-                ORDER BY t.id''', list(task_ids)):
-            tiles[row['parent_id']].append(dict(
-                id=row['id'], title=row['title'], key=medal_key(row), importance=row['importance'], who=row['who'],
-                state='done' if row['status'] == 'done' else 'busy' if row['status'] != 'open' else 'open',
-                mine=bool(viewer_id) and row['assignee_id'] == viewer_id))
-    return tiles
-
-
-def grid(count):
-    """Columns and rows for a mosaic of `count` tiles, kept around 3:2 so it sits well in a card."""
-    count = max(count, 1)
-    cols = min(count, ceil(sqrt(count * 1.6)))
-    return cols, ceil(count / cols)
+        for row in db.execute(f'''SELECT parent_id,SUM(status='done') done,COUNT(*) total FROM tasks
+                WHERE parent_id IN ({','.join('?' * len(task_ids))}) GROUP BY parent_id''', list(task_ids)):
+            counts[row['parent_id']] = (row['done'], row['total'])
+    return counts
 
 
 def listing(db, viewer_id, statuses=('open', 'active', 'review')):
@@ -94,14 +82,14 @@ def listing(db, viewer_id, statuses=('open', 'active', 'review')):
         FROM tasks t JOIN users u ON u.id=t.owner_id WHERE t.kind='team' AND t.status IN ({marks})''',
                       (viewer_id, *statuses)).fetchall()
     ids = [row['id'] for row in rows]
-    members, tiles = members_by_task(db, ids), tiles_by_parent(db, ids, viewer_id)
+    members, shares = members_by_task(db, ids), share_counts(db, ids)
     items = []
     for row in rows:
         people = members[row['id']]
         left = None if row['team_size'] is None else max(row['team_size'] - len(people), 0)
-        items.append(dict(row, members=people, tiles=tiles[row['id']], mine=row['owner_id'] == viewer_id, left=left,
+        items.append(dict(row, members=people, mine=row['owner_id'] == viewer_id, left=left,
                           open_seat=row['status'] in ('open', 'active') and left != 0 and row['deadline'] > now(),
-                          pieces_done=sum(t['state'] == 'done' for t in tiles[row['id']])))
+                          pieces_done=shares[row['id']][0], pieces=shares[row['id']][1]))
     if statuses == ('done',):
         return sorted(items, key=lambda item: item['done_at'] or '', reverse=True)
     return sorted(items, key=lambda item: (not (item['joined'] or item['mine']), not item['open_seat'], item['deadline']))

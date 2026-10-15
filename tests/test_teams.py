@@ -140,7 +140,8 @@ class TeamTaskTest(unittest.TestCase):
         self.assertIn('kind-switch', owner.get('/tasks/new?kind=team').text)
         self.assertEqual(owner.get('/big/new').status_code, 302)
         home = ann.get('/').text
-        self.assertIn('class="bigband', home)
+        self.assertIn('lane-team', home)
+        self.assertIn('crew-art', home)
         self.assertIn('办好周六模拟赛', home)
         self.assertIn('加入，一起做', ann.get(f'/tasks/{task}').text)
         self.post(ann, f'/tasks/{task}/join', {})

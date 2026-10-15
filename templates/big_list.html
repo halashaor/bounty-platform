@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% from 'components/icon.html' import icon %}
-{% from 'components/team.html' import big_card %}
+{% from 'components/team.html' import team_card %}
 {% block title %}大任务 · 結 YUI{% endblock %}
 {% block body_class %}page-bigs{% endblock %}
 {% block content %}
@@ -17,7 +17,7 @@
   <section aria-labelledby="active-title">
     <h2 class="sec" id="active-title">在做的<span>{{ active|length }}</span><small>你在里面的、你发布的排前面，然后是还能加入的</small></h2>
     {% if active %}
-    <div class="big-grid">{% for item in active %}{{ big_card(item, loop.index0) }}{% endfor %}</div>
+    <div class="big-grid">{% for item in active %}{{ team_card(item, loop.index0) }}{% endfor %}</div>
     {% else %}
     <div class="empty panel"><b>现在没有在做的大任务</b><span>要好几个人一起才能做完的事，就发一个，等大家加入。</span><a class="btn btn-sm" href="{{ url_for('new_task', kind='team') }}">{{ icon('plus') }}发大任务</a></div>
     {% endif %}
@@ -26,7 +26,7 @@
   {% if done %}
   <section aria-labelledby="done-title">
     <h2 class="sec" id="done-title">一起完成的<span>{{ done|length }}</span></h2>
-    <div class="big-grid small">{% for item in done %}{{ big_card(item, loop.index0) }}{% endfor %}</div>
+    <div class="big-grid">{% for item in done %}{{ team_card(item, loop.index0) }}{% endfor %}</div>
   </section>
   {% endif %}
 </div>

@@ -58,9 +58,14 @@
 </article>
 {%- endmacro %}
 
+{# 几个点串在一条线上：大任务的小标记 #}
+{% macro crew_dots() -%}
+<svg class="crew-dots" viewBox="0 0 22 10" aria-hidden="true"><path d="M4 5H18"/><circle cx="11" cy="5" r="2.7"/><circle cx="18" cy="5" r="2.7"/><circle class="k" cx="4" cy="5" r="3.8"/></svg>
+{%- endmacro %}
+
 {# 任务卡标题上的一行小字：大任务，或者这份分工属于哪个大任务 #}
 {% macro big_tag(title) -%}
-<span class="bigtag"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="0" y="0" width="5" height="5" rx="1.2"/><rect x="7" y="0" width="5" height="5" rx="1.2"/><rect x="0" y="7" width="5" height="5" rx="1.2"/><rect x="7" y="7" width="5" height="5" rx="1.2" class="on"/></svg>{{ title }}</span>
+<span class="bigtag">{{ crew_dots() }}{{ title }}</span>
 {%- endmacro %}
 
 {% macro csrf() -%}<input type="hidden" name="csrf" value="{{ session.csrf }}">{%- endmacro %}

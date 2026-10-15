@@ -26,7 +26,7 @@
     <h2 class="sec" id="tag-list-title">现在的标签<span>{{ listing|length }}</span><small>按这里的顺序出现在「发现」的方向条和发布页上</small></h2>
     <ol class="tag-rows">
       {% for tag in listing %}
-      <li class="tag-row" id="tag-{{ loop.index }}">
+      <li class="tag-entry" id="tag-{{ loop.index }}">
         <span class="tag-pos num">{{ loop.index }}</span>
         <form method="post" action="{{ url_for('update_tag') }}" class="tag-edit">
           {{ csrf() }}<input type="hidden" name="name" value="{{ tag.name }}"><input type="hidden" name="anchor" value="#tag-{{ loop.index }}">
