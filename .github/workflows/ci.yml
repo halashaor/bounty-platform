@@ -1,0 +1,35 @@
+name: mission-ci
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements-cloud.txt
+      - run: python -m unittest discover -s tests -v
+      - run: git diff --check
+      - name: Prepare offline dependencies
+        run: pip wheel --wheel-dir wheels -r requirements-cloud.txt
+      - name: Build release image
+        run: docker build --network=none -t bounty-platform:${{ github.sha }} .
+      - name: Export main release
+        if: github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p release
+          docker save bounty-platform:${{ github.sha }} | gzip > release/image.tar.gz
+          printf '%s\n' '${{ github.sha }}' > release/revision
+          cp -R deploy release/deploy
+      - uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/main'
+        with:
+          name: mission-${{ github.sha }}
+          path: release
+          retention-days: 14
