@@ -93,6 +93,7 @@ def build(db, user_id, term):
         (SELECT COUNT(DISTINCT user_id) FROM honors WHERE awarded_at>=? AND awarded_at<?) people''', span + span).fetchone()
     lines = sum(db.execute(f'SELECT COUNT(*) FROM {table} WHERE user_id=? AND solved_at>=? AND solved_at<?', (user_id, *span)).fetchone()[0]
                 for table in ('lines_solved', 'daily_lines'))
+    lines += db.execute('SELECT COALESCE(SUM(solved),0) FROM lines_tally WHERE user_id=? AND term=?', (user_id, term)).fetchone()[0]
     stamp = db.execute("""SELECT MAX(score) FROM game_runs WHERE user_id=? AND game='stamp' AND finished_at>=? AND finished_at<?""",
                        (user_id, *span)).fetchone()[0]
     return dict(

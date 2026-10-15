@@ -2,7 +2,6 @@
 {% from 'components/icon.html' import icon %}
 {% from 'components/medal.html' import medal %}
 {% from 'components/ui.html' import ava, plate, csrf, hanko %}
-{% from 'components/blocks.html' import build_svg %}
 {% block title %}成就 · 結 YUI{% endblock %}
 {% block body_class %}page-honors{% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='case.js') }}" defer></script><script src="{{ url_for('static', filename='share.js') }}" defer></script>{% endblock %}
@@ -76,12 +75,11 @@
     <div class="pedit panel">
       <div class="pedit-head"><h2 class="sec">我的名牌<small>出现在团队名牌墙上</small></h2>
         <button type="button" class="btn btn-line btn-sm" data-save-plate>{{ icon('download') }}存成图片</button></div>
-      {% if my_build %}{% set build_markup %}{{ build_svg(my_build) }}{% endset %}{% endif %}
       {{ plate(g.user.name, me, plate_medals, 'big', my_title, me.complete, my_build) }}
       <script type="application/json" id="plate-data">{{ dict(name=g.user.name, level=me.level, level_name=me.name, medals=plate_medals,
         hue=medals[plate_medals[0]].hue if plate_medals else '#9A9DA8', complete=me.complete,
         title=dict(name=my_title.name, color=my_title.color) if my_title else none, xp=me.xp, total=me.total,
-        build=build_markup|string if my_build else none)|tojson }}</script>
+        build=dict(bg=my_build.bg, view=my_build.view, parts=my_build.parts) if my_build else none)|tojson }}</script>
       <details class="shelf-editor">
         <summary>{{ icon('medal') }}换名牌上的勋章</summary>
         {% if me.total %}

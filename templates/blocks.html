@@ -1,6 +1,5 @@
 {% extends 'base.html' %}
 {% from 'components/icon.html' import icon %}
-{% from 'components/medal.html' import medal %}
 {% from 'components/blocks.html' import build_svg, part_icon %}
 {% from 'components/ui.html' import csrf %}
 {% block title %}积木 · 結 YUI{% endblock %}
@@ -14,7 +13,7 @@
     <h1>积木<span>{{ open_parts|length }} / {{ parts|length }} 种零件 · {{ colors|selectattr('open')|list|length }} / {{ colors|length }} 种颜色</span></h1>
   </header>
 
-  <div class="blocks-layout" data-blocks data-save="{{ url_for('save_build') }}" data-size="{{ size }}" data-max="{{ max_parts }}">
+  <div class="blocks-layout" data-blocks data-save="{{ url_for('save_build') }}" data-max="{{ max_parts }}">
     {# 零件盒：拿到的勋章越多，零件和颜色越多；没解锁的写着怎么解锁 #}
     <aside class="parts-box panel" aria-label="零件盒">
       {% for family in ['点', '线', '面', '勋章'] %}
@@ -43,39 +42,40 @@
       <div class="paint-box" title="颜色来自勋章：拿到哪种勋章，就多一种它的颜色">
         <div class="swatches" role="radiogroup" aria-label="颜色">
           {% for color in colors %}
-          <button type="button" class="swatch{{ ' locked' if not color.open }}" data-color="{{ color.id }}" style="--c:{{ color.hex }}" role="radio" aria-checked="{{ 'true' if loop.first else 'false' }}"
+          <button type="button" class="swatch{{ ' locked' if not color.open }}" data-color="{{ color.id }}" style="--c:{{ color.hex }}" role="radio" aria-checked="false"
                   {% if not color.open %}aria-disabled="true"{% endif %} title="{{ color.name }}{{ '：' ~ color.need if not color.open }}" aria-label="{{ color.name }}{{ '，' ~ color.need ~ '后解锁' if not color.open }}">{% if not color.open %}{{ icon('lock') }}{% endif %}</button>
           {% endfor %}
         </div>
-        <div class="bgs"><span>底色</span>
+        <div class="bgs"><span>底板</span>
           {% for key, hex in backgrounds.items() %}{% if key == 'paper' or colors|selectattr('id', 'equalto', key)|selectattr('open')|list %}
           <button type="button" class="bg-btn" data-bg="{{ key }}" style="--c:{{ hex }}" title="{{ '纸' if key == 'paper' else colors|selectattr('id', 'equalto', key)|map(attribute='name')|first }}"></button>
           {% endif %}{% endfor %}
         </div>
       </div>
       <div class="board-frame">
-        <svg class="block-board" viewBox="0 0 160 160" data-board role="img" aria-label="积木板，{{ size }}×{{ size }} 格">
-          <defs><pattern id="studs" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="5" cy="5" r="0.9" fill="currentColor"/></pattern></defs>
-          <rect class="board-bg" width="160" height="160" data-bg-rect/>
-          <rect class="board-studs" width="160" height="160" fill="url(#studs)"/>
-          <g data-parts></g>
-          <g class="ghost" data-ghost></g>
-          <rect class="select-box" data-select-box x="0" y="0" width="0" height="0" rx="2"/>
+        <svg class="block-board" viewBox="-166 -92 332 268" data-board role="img" aria-label="积木板，{{ size }}×{{ size }} 格，最高 {{ levels }} 层">
+          <rect x="-400" y="-400" width="800" height="800" data-sky/>
+          <g data-scene></g>
+          <g class="board-marks" data-mark></g>
         </svg>
-        <p class="board-empty" data-empty>从左边挑一个零件，再点板子放上去</p>
+        <div class="view-turn" role="group" aria-label="转视角">
+          <button type="button" class="tool round" data-tool="view-left" title="往左转视角（Q）" aria-label="往左转视角">{{ icon('turn-left') }}</button>
+          <span class="view-dial" data-view-dial aria-hidden="true"><i></i></span>
+          <button type="button" class="tool round" data-tool="view-right" title="往右转视角（E）" aria-label="往右转视角">{{ icon('turn-right') }}</button>
+        </div>
+        <p class="board-empty" data-empty>从左边挑一个零件，再点板子放上去<br><small>零件会落在下面最高的地方，可以一层层往上搭</small></p>
       </div>
       <div class="tool-bar" role="toolbar" aria-label="零件操作">
-        <button type="button" class="tool" data-tool="rotate" title="旋转（R）">{{ icon('shuffle') }}<span>转</span></button>
-        <button type="button" class="tool" data-tool="paint" title="换成当前颜色">{{ icon('medal') }}<span>上色</span></button>
-        <button type="button" class="tool" data-tool="copy" title="复制（D）">{{ icon('plus') }}<span>复制</span></button>
-        <button type="button" class="tool" data-tool="front" title="放到最上面（]）">{{ icon('arrow') }}<span>往前</span></button>
-        <button type="button" class="tool" data-tool="back" title="放到最下面（[）">{{ icon('back') }}<span>往后</span></button>
-        <button type="button" class="tool" data-tool="delete" title="删掉（Delete）">{{ icon('close') }}<span>删掉</span></button>
+        <button type="button" class="tool" data-tool="rotate" title="转零件（R）">{{ icon('shuffle') }}<span>转</span></button>
+        <button type="button" class="tool" data-tool="paint" title="换成当前颜色">{{ icon('drop') }}<span>上色</span></button>
+        <button type="button" class="tool" data-tool="copy" title="拿一个一样的（D）">{{ icon('copy') }}<span>再拿一个</span></button>
+        <button type="button" class="tool" data-tool="delete" title="删掉（Delete）">{{ icon('trash') }}<span>删掉</span></button>
         <span class="tool-gap"></span>
         <button type="button" class="tool" data-tool="undo" title="撤销（Ctrl+Z）">{{ icon('undo') }}<span>撤销</span></button>
         <button type="button" class="tool" data-tool="clear" title="清空">{{ icon('close') }}<span>清空</span></button>
         <span class="part-count num"><b data-count>0</b> / {{ max_parts }}</span>
       </div>
+      <p class="board-tip">拖着零件能挪地方，压在上面的会跟着掉下来。保存时朝哪边看，名牌和积木墙上就是哪一面。</p>
     </section>
 
     <aside class="works panel" aria-label="我的作品">
@@ -91,5 +91,4 @@
   </div>
 </div>
 <script type="application/json" id="blocks-data">{{ editor|tojson }}</script>
-<template data-medal-template>{% for key in medals %}<span data-key="{{ key }}">{{ medal(key) }}</span>{% endfor %}</template>
 {% endblock %}

@@ -32,11 +32,11 @@
   <section class="blocks-card panel" aria-labelledby="blocks-title">
     <a class="blocks-preview" href="{{ url_for('play_blocks', id=mine[0].id) if mine else url_for('play_blocks') }}" aria-label="打开积木">
       {% if mine %}{{ build_svg(mine[0], label='最近的作品「' ~ mine[0].name ~ '」') }}
-      {% else %}{{ build_svg(dict(bg='paper', parts=[['quarter', 'ink', 0, 12, 0], ['dot-m', 'ink', 9, 3, 0], ['bar-3', 'ink', 5, 9, 0], ['sq-2', 'ink', 12, 12, 0], ['dot-s', 'ink', 3, 3, 0], ['bar-3', 'white', 6, 13, 1]])) }}{% endif %}
+      {% else %}{{ build_svg(dict(bg='paper', view=0, parts=sample)) }}{% endif %}
     </a>
     <div class="blocks-text">
-      <h2 id="blocks-title">积木<small>用点、线、面拼你想拼的</small></h2>
-      <p>16×16 的板子，零件就是勋章上的那些点、线、面。拼好的作品可以挂到名牌上，队友在名牌墙和下面的积木墙都能看到。</p>
+      <h2 id="blocks-title">积木<small>一层层往上搭</small></h2>
+      <p>16×16 的板子，零件分点、线、面三类，能叠、能转、能换个方向看，拿到的勋章也能立在上面。搭好的作品可以挂到名牌上，队友在名牌墙和下面的积木墙都能看到。</p>
       <div class="part-strip" aria-label="已经能用的零件">{% for item in parts_open[:12] %}{{ part_icon(item.id[5:]) }}{% endfor %}{% if parts_open|length < parts_all|length %}<span class="more">还有 {{ parts_all|length - parts_open|length }} 种靠勋章解锁</span>{% endif %}</div>
       <div class="blocks-actions">
         <a class="btn btn-big" href="{{ url_for('play_blocks', id=mine[0].id) if mine else url_for('play_blocks') }}">{{ icon('play') }}{{ '接着搭' if mine else '开始搭' }}</a>

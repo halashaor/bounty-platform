@@ -56,10 +56,15 @@ ADMIN = '发布者'
 COLD = {'整理 DP 专题题单': 8, '整理历年校赛题目归档': 6, '补全 50 道题的样例解释': 9}
 # 挂在名牌上的积木作品（只用他们的勋章已经解锁的零件和颜色）
 BUILDS = {
-    '陈默': ('评测机', 'paper', [['quarter', 'red', 0, 12, 0], ['sq-2', 'ink', 10, 2, 0], ['dot-s', 'ink', 4, 4, 0], ['dot-s', 'ink', 5, 5, 0], ['bar-3', 'ink', 6, 9, 0],
-                                ['bar-3', 'red', 9, 11, 1], ['dot-s', 'ink', 13, 13, 0], ['medal-major-urgent', 'white', 12, 6, 0]]),
-    '周然': ('夜里的实验室', 'ink', [['quarter', 'blue', 12, 12, 1], ['dot-s', 'white', 2, 2, 0], ['dot-s', 'white', 6, 4, 0], ['dot-s', 'white', 10, 1, 0],
-                                   ['sq-2', 'white', 12, 2, 0], ['bar-3', 'white', 2, 13, 0], ['sq-2', 'blue', 5, 10, 0], ['medal-major-normal', 'white', 1, 7, 0]]),
+    '陈默': ('评测机', 'paper', [['plate', 'sand', 6, 6, 0, 0],
+                                *[['block', 'ink', x, y, 0, 0] for _ in range(3) for x, y in ((7, 7), (8, 7), (7, 8), (8, 8))],
+                                ['beam-3', 'cyan', 6, 9, 0, 0], ['medal-major-urgent', 'white', 7, 7, 0, 0],
+                                ['stud', 'red', 7, 8, 0, 0], ['stud', 'red', 8, 8, 0, 0], ['stud', 'cyan', 9, 6, 0, 0]]),
+    '周然': ('夜里的实验室', 'ink', [['plate', 'blue', 5, 5, 0, 0], ['plate', 'blue', 9, 5, 0, 0],
+                                   *[['block', 'white', x, y, 0, 0] for x in (6, 7, 8) for y in (6, 7)],
+                                   *[['block', 'blue' if x == 7 else 'white', x, y, 0, 0] for x in (6, 7, 8) for y in (6, 7)],
+                                   ['beam-3', 'ink', 6, 6, 0, 0], ['beam-3', 'ink', 6, 7, 0, 0], ['ball', 'green', 7, 6, 0, 0],
+                                   ['medal-major-normal', 'white', 10, 7, 0, 0], ['stud', 'white', 9, 6, 0, 0], ['stud', 'white', 12, 5, 0, 0]]),
 }
 # 大任务：好几个人一起做。linked 是上面已有的任务里归它的分工，pieces 是后来拆出来的分工：
 # (标题, 标签, 勋章, 由谁拆, 走到哪一步, 由谁来做)。stage 是大任务本身走到哪一步。

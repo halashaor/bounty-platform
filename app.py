@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import unquote
 from flask import Flask, abort, flash, g, redirect, render_template, render_template_string, request, session, url_for, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
-from bounty import blocks, discover, games, progress, recap, tags, teams, titles, unlocks
+from bounty import blocks, cleanup, discover, games, progress, recap, tags, teams, titles, unlocks
 from bounty.db import connect, initialize
 from bounty.honors import COLD_DAYS, EFFORT, IMPORTANCE, URGENCY, MEDALS, cold_bonus, medal_key, task_xp
 from bounty.service import (CATEGORIES, STATUSES, KINDS, MAX_INTERESTS, MAX_TEAM, TEAM_TZ, InvalidAction, act, clap,
@@ -107,6 +107,17 @@ def create_app(config=None):
         return connect(app.config['DATABASE'], write=write)
 
     @app.before_request
+    def housekeeping():
+        # 每个团队日的第一个请求顺手清一次旧数据（多个进程时库里也记着今天清过没有）
+        day = games.today()
+        if app.config.get('SWEPT_ON') != day:
+            app.config['SWEPT_ON'] = day
+            try:
+                cleanup.run(app.config['DATABASE'])
+            except sqlite3.Error:
+                app.logger.exception('cleanup failed')
+
+    @app.before_request
     def load_user():
         g.user = None
         # 浏览器把自己的时区写在 tz cookie 里（见 base.html），页面上的时间都按看的人当地时间显示
@@ -138,7 +149,7 @@ def create_app(config=None):
                                  task_xp=progress.task_xp, praise_options=PRAISE, due_label=due_label, tag_look=tag_look,
                                  max_interests=MAX_INTERESTS, local_now=lambda: datetime.now(g.tz), offer_xp=offer_xp,
                                  cold_days=cold_days, is_cold=is_cold, title_names=titles.BY_KEY,
-                                 block_parts=blocks.PARTS, block_colors=blocks.COLORS, block_bgs=blocks.BACKGROUNDS,
+                                 block_data=blocks.page_data(),
                                  big_grid=teams.grid)
 
     def page_url(**changes):
@@ -612,7 +623,8 @@ def create_app(config=None):
         have = {item['id'] for item in board if item['open']}
         return render_template('play.html', board=board, lines=state, best=best, modes=games.MODES, have=have,
                                game_titles=game_titles, levels=games.LEVELS, today_set=today_set, daily_count=daily_count,
-                               mine=mine[:4], builds=len(mine), wall=wall, part_shapes=blocks.PARTS, colors=blocks.COLORS)
+                               mine=mine[:4], builds=len(mine), wall=wall, colors=blocks.COLORS,
+                               sample=blocks.settle([list(item) for item in blocks.SAMPLE]))
 
     # ---------- 积木 ----------
     @app.get('/play/blocks')
@@ -625,11 +637,11 @@ def create_app(config=None):
         build = next((item for item in mine if str(item['id']) == wanted), None)
         if wanted and not build:
             return redirect(url_for('play_blocks'))
-        editor = dict(parts={part['id']: {k: part[k] for k in ('w', 'h', 'shape', 'open', 'name', 'need')} for part in parts},
+        editor = dict(parts={part['id']: {k: part[k] for k in ('open', 'name', 'need')} for part in parts},
                       colors={color['id']: {k: color[k] for k in ('hex', 'open', 'name', 'need')} for color in colors},
-                      backgrounds=blocks.BACKGROUNDS, build=build)
+                      build=build)
         return render_template('blocks.html', parts=parts, colors=colors, mine=mine, build=build, size=blocks.BOARD,
-                               backgrounds=blocks.BACKGROUNDS, max_parts=blocks.MAX_PARTS, editor=editor)
+                               levels=blocks.LEVELS, backgrounds=blocks.BACKGROUNDS, max_parts=blocks.MAX_PARTS, editor=editor)
 
     @app.post('/play/blocks/save')
     @login_required
@@ -638,7 +650,7 @@ def create_app(config=None):
         build_id = data.get('id')
         try:
             saved = blocks.save(app.config['DATABASE'], g.user['id'], build_id if isinstance(build_id, int) else None,
-                                data.get('name', ''), data.get('bg', 'paper'), data.get('parts'))
+                                data.get('name', ''), data.get('bg', 'paper'), data.get('parts'), data.get('view', 0))
         except InvalidAction as error:
             return json_error(error)
         return jsonify(id=saved, url=url_for('play_blocks', id=saved))

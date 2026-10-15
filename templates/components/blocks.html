@@ -1,26 +1,9 @@
-{% from 'components/medal.html' import medal %}
-
-{# 一个积木零件：(x, y) 是它占的格子的左上角，r 是转了几个 90°；形状画在以中心为原点的坐标里 #}
-{% macro part_g(part, color, x, y, r) -%}
-{%- set w = block_parts[part][0] -%}{%- set h = block_parts[part][1] -%}
-{%- set fw = h if r % 2 else w -%}{%- set fh = w if r % 2 else h -%}
-<g transform="translate({{ (x + fw / 2) * 10 }} {{ (y + fh / 2) * 10 }}) rotate({{ r * 90 }})" color="{{ block_colors[color] }}" fill="currentColor">
-{%- if block_parts[part][2] -%}{{ block_parts[part][2]|safe }}{%- else -%}{{ medal(part[6:], box=(-15, -15, 30)) }}{%- endif -%}
-</g>
-{%- endmacro %}
-
-{# 一整件作品：16×16 格，每格 10 个单位 #}
+{# 一整件作品：页面加载后由 static/iso.js 画成立体的，画好之前先露出底色 #}
 {% macro build_svg(build, cls='', label=none) -%}
-<svg class="build{{ ' ' ~ cls if cls }}" viewBox="0 0 160 160" {% if label %}role="img" aria-label="{{ label }}"{% else %}aria-hidden="true"{% endif %}>
-<rect width="160" height="160" fill="{{ block_bgs[build.bg] }}"/>
-{%- for part, color, x, y, r in build.parts %}{{ part_g(part, color, x, y, r) }}{% endfor -%}
-</svg>
+<svg class="build{{ ' ' ~ cls if cls }}" viewBox="0 0 10 10" data-build='{{ dict(bg=build.bg, view=build.view or 0, parts=build.parts)|tojson }}' {% if label %}role="img" aria-label="{{ label }}"{% else %}aria-hidden="true"{% endif %}><rect width="10" height="10" fill="#F7F6F2"/></svg>
 {%- endmacro %}
 
-{# 零件小图：零件盒里的按钮用 #}
-{% macro part_icon(part, color='#1B1D2A') -%}
-{%- set w = block_parts[part][0] -%}{%- set h = block_parts[part][1] -%}
-<svg class="part-icon" viewBox="{{ -w * 5 - 2 }} {{ -h * 5 - 2 }} {{ w * 10 + 4 }} {{ h * 10 + 4 }}" aria-hidden="true"><g color="{{ color }}" fill="currentColor">
-{%- if block_parts[part][2] -%}{{ block_parts[part][2]|safe }}{%- else -%}{{ medal(part[6:], box=(-15, -15, 30)) }}{%- endif -%}
-</g></svg>
+{# 零件小图：零件盒、游戏角的解锁路线上用 #}
+{% macro part_icon(part, color='ink') -%}
+<svg class="part-icon" viewBox="0 0 10 10" data-part-icon="{{ part }}" data-color="{{ color }}" aria-hidden="true"></svg>
 {%- endmacro %}

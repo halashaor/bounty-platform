@@ -24,7 +24,9 @@
   </script>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='board.css') }}">
+  <script type="application/json" id="block-data">{{ block_data|tojson }}</script>
   <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='iso.js') }}" defer></script>
   <script src="{{ url_for('static', filename='board.js') }}" defer></script>
   {% block scripts %}{% endblock %}
 </head>

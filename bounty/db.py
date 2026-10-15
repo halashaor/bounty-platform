@@ -79,12 +79,6 @@ CREATE TABLE IF NOT EXISTS game_runs (
  score INTEGER,
  combo INTEGER
 );
-CREATE TABLE IF NOT EXISTS daily_solved (
- user_id INTEGER NOT NULL REFERENCES users(id),
- day TEXT NOT NULL,
- solved_at TEXT NOT NULL,
- PRIMARY KEY(user_id,day)
-);
 CREATE TABLE IF NOT EXISTS daily_lines (
  user_id INTEGER NOT NULL REFERENCES users(id),
  day TEXT NOT NULL,
@@ -98,6 +92,7 @@ CREATE TABLE IF NOT EXISTS builds (
  name TEXT NOT NULL,
  bg TEXT NOT NULL,
  parts TEXT NOT NULL,
+ view INTEGER NOT NULL DEFAULT 0,
  shown INTEGER NOT NULL DEFAULT 0,
  created_at TEXT NOT NULL,
  updated_at TEXT NOT NULL
@@ -117,6 +112,16 @@ CREATE TABLE IF NOT EXISTS task_members (
  PRIMARY KEY(task_id,user_id)
 );
 CREATE INDEX IF NOT EXISTS task_members_by_user ON task_members(user_id);
+CREATE TABLE IF NOT EXISTS lines_tally (
+ user_id INTEGER NOT NULL REFERENCES users(id),
+ term TEXT NOT NULL,
+ solved INTEGER NOT NULL,
+ PRIMARY KEY(user_id,term)
+);
+CREATE TABLE IF NOT EXISTS meta (
+ key TEXT PRIMARY KEY,
+ value TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS lines_solved (
  user_id INTEGER NOT NULL REFERENCES users(id),
  level INTEGER NOT NULL,
@@ -172,6 +177,7 @@ def initialize(path):
         new_tag_table = 'org_tags' not in tables
         # 早期版本的「游戏券」账本：游戏角现在改成用勋章解锁，这张表只是从勋章推出来的，直接去掉
         db.execute('DROP TABLE IF EXISTS tickets')
+        db.execute('DROP TABLE IF EXISTS daily_solved')   # 早期的每日一题，已经换成每天 6 关的 daily_lines
         if 'game_runs' in tables and 'mode' not in {row['name'] for row in db.execute('PRAGMA table_info(game_runs)')}:
             db.execute("ALTER TABLE game_runs ADD COLUMN mode TEXT NOT NULL DEFAULT 'normal'")
         db.executescript(SCHEMA)
@@ -222,6 +228,11 @@ def initialize(path):
                                [(name, note, i) for i, (name, note) in enumerate(STARTER_TAGS, 1)])
         if 'big_tasks' in tables:
             _big_tasks_become_team_tasks(db)
+        if 'view' not in {row['name'] for row in db.execute('PRAGMA table_info(builds)')}:
+            # 积木从平面换成立体：旧作品换成立体零件，作品记下保存时的视角
+            from .blocks import upgrade_flat
+            db.execute('ALTER TABLE builds ADD COLUMN view INTEGER NOT NULL DEFAULT 0')
+            upgrade_flat(db)
         # Also resumes safely if startup was interrupted after the table migration.
         db.execute('''INSERT OR IGNORE INTO honors (task_id,user_id,medal_key,awarded_at)
             SELECT t.id,t.assignee_id,t.importance || '-' || t.urgency,

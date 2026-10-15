@@ -651,28 +651,42 @@ class WorkflowTest(unittest.TestCase):
         with connect(self.path) as db:
             have = unlocks.unlocked(db, 2)
         self.assertEqual({item for item in have if item.startswith(('part:', 'color:'))},
-                         {'color:ink', 'color:white', 'part:dot-s', 'part:bar-3', 'part:sq-2'})
-        save = lambda parts, bg='paper', build_id=None, client=worker, status=200: client.post(
-            '/play/blocks/save', json={'id': build_id, 'name': '小房子', 'bg': bg, 'parts': parts},
+                         {'color:ink', 'color:white', 'color:sand', 'part:stud', 'part:beam-3', 'part:block'})
+        save = lambda parts, bg='paper', build_id=None, client=worker, view=0: client.post(
+            '/play/blocks/save', json={'id': build_id, 'name': '小房子', 'bg': bg, 'view': view, 'parts': parts},
             headers={'X-CSRF-Token': self.csrf(client), 'Accept': 'application/json'})
-        self.assertEqual(save([['sq-2', 'ink', 0, 0, 0]]).status_code, 200)
-        self.assertIn('还没解锁', save([['quarter', 'ink', 0, 0, 0]]).json['error'])
-        self.assertIn('还没解锁', save([['sq-2', 'cyan', 0, 0, 0]]).json['error'])
-        self.assertIn('外面', save([['bar-3', 'ink', 14, 0, 0]]).json['error'])
-        self.assertEqual(save([['bar-3', 'ink', 15, 0, 1]]).status_code, 200)     # 竖着放就放得下
-        self.assertIn('不对', save([['sq-2', 'ink', 0, 0, 7]]).json['error'])
+        self.assertEqual(save([['block', 'ink', 0, 0, 0, 0]]).status_code, 200)
+        self.assertIn('还没解锁', save([['plate', 'ink', 0, 0, 0, 0]]).json['error'])
+        self.assertIn('还没解锁', save([['block', 'cyan', 0, 0, 0, 0]]).json['error'])
+        self.assertIn('外面', save([['beam-3', 'ink', 14, 0, 0, 0]]).json['error'])
+        self.assertEqual(save([['beam-3', 'ink', 15, 0, 0, 1]]).status_code, 200)     # 转过来就放得下
+        self.assertIn('不对', save([['block', 'ink', 0, 0, 0, 7]]).json['error'])
+        self.assertIn('不对', save([['block', 'ink', 0, 0, 0]]).json['error'])          # 平面时代的五元组
+        self.assertIn('视角', save([], view=4).json['error'])
         self.assertEqual(worker.post('/play/blocks/save', json={'parts': []}).status_code, 400)   # 没带令牌
-        # 拿到「线」勋章：多了青色和长线，颁奖时会说出来
+        # 零件一律落到脚下最高的地方：浮在半空、穿进别的零件里的都会落好
+        floating = save([['block', 'ink', 3, 3, 0, 0], ['beam-3', 'white', 2, 3, 9, 0], ['stud', 'sand', 3, 3, 0, 0]]).json['id']
+        with connect(self.path) as db:
+            self.assertEqual(json.loads(db.execute('SELECT parts FROM builds WHERE id=?', (floating,)).fetchone()['parts']),
+                             [['block', 'ink', 3, 3, 0, 0], ['beam-3', 'white', 2, 3, 3, 0], ['stud', 'sand', 3, 3, 2, 0]])   # 低的先落
+        self.assertIn('太高', save([['block', 'ink', 0, 0, 0, 0]] * 13).json['error'])
+        self.assertEqual(save([['block', 'ink', 0, 0, 0, 0]] * 12).status_code, 200)
+        # 拿到「线」勋章：多了青色和长梁，颁奖时会说出来
         self.award(2, 'standard-normal')
         revealed = self.post_json(worker, '/honors/reveal')
         self.assertIn('青色', revealed['awards'][0]['opens'])
-        self.assertIn('长线', revealed['awards'][0]['opens'])
+        self.assertIn('长梁', revealed['awards'][0]['opens'])
         self.assertIn('class="new-dot"', worker.get('/').text)
-        build = save([['bar-6', 'cyan', 2, 2, 0], ['medal-standard-normal', 'white', 5, 5, 0]], bg='cyan').json['id']
+        build = save([['beam-6', 'cyan', 2, 2, 0, 0], ['medal-standard-normal', 'white', 3, 2, 0, 0]], bg='cyan', view=3).json['id']
+        with connect(self.path) as db:
+            saved = blocks.mine(db, 2)[0]
+        self.assertEqual((saved['view'], saved['parts'][1][4]), (3, 1))   # 勋章立在长梁上
         # 只能改、挂、删自己的作品
         self.assertIn('不存在', save([], build_id=build, client=self.clients[2]).json['error'])
         self.assertTrue(self.post_json(worker, f'/play/blocks/{build}/show')['shown'])
-        self.assertIn('plate-build', worker.get('/honors').text)
+        honors = worker.get('/honors').text
+        self.assertIn('plate-build', honors)
+        self.assertIn('"view": 3', honors)
         play = worker.get('/play').text
         self.assertIn('积木墙', play)
         self.assertNotIn('class="new-dot"', worker.get('/').text)   # 进过游戏角，「新」就收起来
@@ -681,8 +695,70 @@ class WorkflowTest(unittest.TestCase):
         self.assertEqual(self.post_json(self.clients[2], f'/play/blocks/{build}/show', status=400)['error'], '这件作品不存在。')
         self.post(worker, f'/play/blocks/{build}/delete', {})
         with connect(self.path) as db:
-            self.assertEqual(len(blocks.mine(db, 2)), 2)
-        self.assertIn('data-blocks', worker.get('/play/blocks').text)
+            self.assertEqual(len(blocks.mine(db, 2)), 4)
+        editor = worker.get('/play/blocks').text
+        self.assertIn('data-blocks', editor)
+        self.assertIn('id="block-data"', editor)
+
+    def test_flat_builds_become_stacked_parts(self):
+        legacy = str(Path(self.temp.name) / 'flat.sqlite3')
+        initialize(legacy)
+        with connect(legacy, write=True) as db:
+            db.execute("INSERT INTO users (id,name,password,play_seen) VALUES (1,'甲','x','part:dot-s,part:sq-2,part:bar-3,color:ink')")
+            db.execute('ALTER TABLE builds DROP COLUMN view')
+            # 平面板子上：一个大方块，上面压着一个小点；还有一个竖着的短线
+            db.execute("""INSERT INTO builds (user_id,name,bg,parts,shown,created_at,updated_at) VALUES
+                (1,'旧作品','ink','[["sq-2","red",4,4,0],["dot-s","white",4,5,0],["bar-3","ink",10,2,1]]',1,'2026-01-01','2026-01-01')""")
+        initialize(legacy)
+        with connect(legacy) as db:
+            build = blocks.mine(db, 1)[0]
+            seen = db.execute('SELECT play_seen FROM users WHERE id=1').fetchone()[0]
+        self.assertEqual((build['view'], build['bg'], build['shown']), (0, 'ink', True))
+        self.assertEqual(build['parts'], [['block', 'red', 4, 4, 0, 0], ['stud', 'white', 4, 5, 0, 0], ['beam-3', 'ink', 10, 2, 0, 1]])
+        self.assertEqual(seen, 'color:ink,part:beam-3,part:block,part:stud')
+        # 升级后的作品就算用到了现在还没解锁的零件，照样能接着改、接着存
+        with connect(legacy, write=True) as db:
+            db.execute("""UPDATE builds SET parts='[["quarter","red",0,0,0,0]]'""")
+        blocks.save(legacy, 1, build['id'], '旧作品', 'paper', [['quarter', 'red', 2, 2, 0, 1]])
+        with self.assertRaises(InvalidAction):
+            blocks.save(legacy, 1, None, '新作品', 'paper', [['quarter', 'red', 2, 2, 0, 1]])
+
+    def test_old_records_are_cleared_daily(self):
+        from bounty import cleanup, recap
+        moment = datetime.now(timezone.utc)
+        ago = lambda days: (moment - timedelta(days=days)).isoformat(timespec='seconds')
+        old_day = (datetime.fromisoformat(games.today()) - timedelta(days=games.DAILY_DAYS + 3)).date().isoformat()
+        # 截止一个多月、没人接也没人说过话的任务；同样旧但有人留过言的留着
+        stale = create_task(self.path, 1, self.data)
+        talked = create_task(self.path, 1, self.data)
+        with connect(self.path, write=True) as db:
+            runs = [(2, 'normal', ago(1.5), None, None, None),            # 开了没打完
+                    (2, 'normal', ago(0.2), None, None, None),            # 刚开的一局留着
+                    (2, 'normal', ago(60), ago(60), 900, 4),              # 最高分
+                    (2, 'normal', ago(61), ago(61), 100, 30),             # 最长连击
+                    (2, 'normal', ago(62), ago(62), 50, 2),               # 什么都不是：删
+                    (2, 'normal', ago(5), ago(5), 10, 1)]                 # 最近的留着
+            db.executemany('INSERT INTO game_runs (user_id,game,mode,started_at,finished_at,score,combo) VALUES (?,"stamp",?,?,?,?,?)', runs)
+            db.executemany('INSERT INTO daily_lines (user_id,day,level,solved_at) VALUES (2,?,?,?)',
+                           [(old_day, n, ago(games.DAILY_DAYS + 3)) for n in (1, 2, 3)] + [(games.today(), 1, ago(0))])
+            before = titles.counts(db, 2)['oneline']
+            term = recap.term_of(moment - timedelta(days=games.DAILY_DAYS + 3))
+            lines_before = recap.build(db, 2, term)['lines']
+            stamp_before = (titles.counts(db, 2)['stamper'], games.stamp_best(db, 2)['normal'])
+            db.execute('UPDATE tasks SET deadline=? WHERE id IN (?,?)', (ago(40), stale, talked))
+            db.execute("INSERT INTO events (task_id,user_id,kind,body,created_at) VALUES (?,3,'comment','还有人做吗',?)", (talked, ago(41)))
+            db.execute('INSERT INTO dismissals (user_id,task_id,created_at) VALUES (2,?,?),(3,?,?)', (stale, ago(50), self.task_id, ago(1)))
+        removed = cleanup.run(self.path, force=True)
+        self.assertEqual(removed, dict(unfinished_runs=1, old_runs=1, daily_lines=3, dismissals=1, stale_tasks=1))
+        self.assertIsNone(cleanup.run(self.path))    # 今天清过了
+        with connect(self.path) as db:
+            self.assertEqual(titles.counts(db, 2)['oneline'], before)
+            self.assertEqual(recap.build(db, 2, term)['lines'], lines_before)
+            self.assertEqual((titles.counts(db, 2)['stamper'], games.stamp_best(db, 2)['normal']['score']), (stamp_before[0], stamp_before[1]['score']))
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM game_runs').fetchone()[0], 4)
+            self.assertEqual({row[0] for row in db.execute('SELECT id FROM tasks')}, {self.task_id, talked})
+            self.assertTrue(db.execute('SELECT 1 FROM dismissals WHERE task_id=?', (self.task_id,)).fetchone())
+            self.assertFalse(db.execute('PRAGMA foreign_key_check').fetchall())
 
     def test_old_ticket_ledger_is_dropped(self):
         legacy = str(Path(self.temp.name) / 'tickets.sqlite3')

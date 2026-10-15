@@ -40,7 +40,7 @@
       <defs><clipPath id="c"><rect width="${W}" height="${H}" rx="56"/></clipPath><clipPath id="b"><rect x="780" y="190" width="340" height="340" rx="22"/></clipPath></defs>
       <g clip-path="url(#c)">
         <rect width="${W}" height="${H}" fill="${d.hue}"/>
-        ${d.build ? `<rect x="766" y="176" width="368" height="368" rx="32" fill="#fff"/><g clip-path="url(#b)">${d.build.replace('<svg ', '<svg x="780" y="190" width="340" height="340" ')}</g>` : `
+        ${d.build && window.yuiBlocks ? `<rect x="766" y="176" width="368" height="368" rx="32" fill="#fff"/><g clip-path="url(#b)">${window.yuiBlocks.markup(d.build).replace('<svg ', '<svg x="780" y="190" width="340" height="340" ')}</g>` : `
         <g transform="translate(80 0) scale(4)">
           <path d="M280 180H150A130 130 0 0 1 280 50Z" fill="${accent}"/>
           <circle cx="168" cy="34" r="3.4" fill="#fff"/><circle cx="180" cy="34" r="3.4" fill="#fff"/><circle cx="191" cy="34" r="3.4" fill="#fff"/>

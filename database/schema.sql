@@ -5,6 +5,7 @@
 --   honors.bonus INTEGER NOT NULL DEFAULT 0
 --   users.title_key TEXT, users.notes_seen_at TEXT, users.play_seen TEXT NOT NULL DEFAULT ''
 --   game_runs.mode TEXT NOT NULL DEFAULT 'normal'
+--   builds.view INTEGER NOT NULL DEFAULT 0 (older flat builds are converted to stacked parts at the same time)
 
 CREATE TABLE IF NOT EXISTS users (
  id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, password TEXT NOT NULL
@@ -78,12 +79,6 @@ CREATE TABLE IF NOT EXISTS game_runs (
  score INTEGER,
  combo INTEGER
 );
-CREATE TABLE IF NOT EXISTS daily_solved (
- user_id INTEGER NOT NULL REFERENCES users(id),
- day TEXT NOT NULL,
- solved_at TEXT NOT NULL,
- PRIMARY KEY(user_id,day)
-);
 CREATE TABLE IF NOT EXISTS daily_lines (
  user_id INTEGER NOT NULL REFERENCES users(id),
  day TEXT NOT NULL,
@@ -97,6 +92,7 @@ CREATE TABLE IF NOT EXISTS builds (
  name TEXT NOT NULL,
  bg TEXT NOT NULL,
  parts TEXT NOT NULL,
+ view INTEGER NOT NULL DEFAULT 0,
  shown INTEGER NOT NULL DEFAULT 0,
  created_at TEXT NOT NULL,
  updated_at TEXT NOT NULL
@@ -116,6 +112,16 @@ CREATE TABLE IF NOT EXISTS task_members (
  PRIMARY KEY(task_id,user_id)
 );
 CREATE INDEX IF NOT EXISTS task_members_by_user ON task_members(user_id);
+CREATE TABLE IF NOT EXISTS lines_tally (
+ user_id INTEGER NOT NULL REFERENCES users(id),
+ term TEXT NOT NULL,
+ solved INTEGER NOT NULL,
+ PRIMARY KEY(user_id,term)
+);
+CREATE TABLE IF NOT EXISTS meta (
+ key TEXT PRIMARY KEY,
+ value TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS lines_solved (
  user_id INTEGER NOT NULL REFERENCES users(id),
  level INTEGER NOT NULL,

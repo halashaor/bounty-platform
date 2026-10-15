@@ -46,8 +46,8 @@ def counts(db, user_id):
         'captain': one('''SELECT COUNT(*) FROM tasks t WHERE t.owner_id=? AND t.kind='team' AND t.status='done'
                           AND EXISTS(SELECT 1 FROM honors h WHERE h.task_id=t.id AND h.user_id<>t.owner_id)''', user_id),
         'complete': one('SELECT COUNT(DISTINCT medal_key) FROM honors WHERE user_id=?', user_id),
-        'oneline': one('SELECT (SELECT COUNT(*) FROM lines_solved WHERE user_id=?)+(SELECT COUNT(*) FROM daily_lines WHERE user_id=?)',
-                       user_id, user_id),
+        'oneline': one('''SELECT (SELECT COUNT(*) FROM lines_solved WHERE user_id=?)+(SELECT COUNT(*) FROM daily_lines WHERE user_id=?)
+                          +(SELECT COALESCE(SUM(solved),0) FROM lines_tally WHERE user_id=?)''', user_id, user_id, user_id),
         'stamper': one("SELECT MAX(combo) FROM game_runs WHERE user_id=? AND game='stamp' AND finished_at IS NOT NULL", user_id),
     }
 

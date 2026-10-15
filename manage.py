@@ -1,4 +1,4 @@
-"""Initialize, seed or back up the local SQLite database."""
+"""Initialize, seed, clean up or back up the local SQLite database."""
 import argparse
 import os
 import sqlite3
@@ -13,6 +13,7 @@ def main():
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('init', help='Create empty database tables')
     commands.add_parser('demo', help='Seed an empty database only')
+    commands.add_parser('cleanup', help='Clear out old records now (the app also does this once a day)')
     backup = commands.add_parser('backup', help='Consistent SQLite backup; refuses to overwrite')
     backup.add_argument('output', type=Path)
     args = parser.parse_args()
@@ -36,6 +37,10 @@ def main():
     else:
         data.mkdir(parents=True, exist_ok=True)
         initialize(database)
+        if args.command == 'cleanup':
+            from bounty.cleanup import run
+            for what, count in run(database, force=True).items():
+                print(f'{what}: {count}')
         if args.command == 'demo':
             from bounty.demo import seed_demo
             try:
