@@ -1,5 +1,5 @@
 """Daily housekeeping: clear out records that nothing reads any more, so the database stops growing with time.
-Medals, tasks someone worked on, talk, titles and builds are never touched. Runs at most once per team day (the first
+Tasks (expired ones included), medals, talk, titles and builds are never touched. Runs at most once per team day (the first
 request of the day starts it) and can be run by hand with `manage.py cleanup`.
 
 - 盖章挑战: a run has to end within 15 minutes, so one still unfinished after a day was abandoned. Finished runs older
@@ -8,8 +8,6 @@ request of the day starts it) and can be run by hand with `manage.py cleanup`.
 - 一笔画: once a day's levels can no longer be caught up on, its records become a per-term count in lines_tally
   (the title and the term recap only need how many).
 - 「不感兴趣」 marks on tasks that are finished or past their deadline (those are never recommended again).
-- Tasks nobody took: still open KEEP_DAYS after the deadline, nobody joined, nothing split off, and nobody but the
-  publisher ever wrote on it.
 """
 import sqlite3
 from collections import Counter
@@ -75,14 +73,4 @@ def sweep(db, moment):
     removed['dismissals'] = db.execute('''DELETE FROM dismissals WHERE task_id IN
         (SELECT id FROM tasks WHERE status='done' OR deadline<?)''', (stamp(0),)).rowcount
 
-    stale = [(row['id'],) for row in db.execute('''SELECT t.id FROM tasks t
-        WHERE t.status='open' AND t.assignee_id IS NULL AND t.deadline<?
-          AND NOT EXISTS (SELECT 1 FROM task_members m WHERE m.task_id=t.id)
-          AND NOT EXISTS (SELECT 1 FROM tasks c WHERE c.parent_id=t.id)
-          AND NOT EXISTS (SELECT 1 FROM honors h WHERE h.task_id=t.id)
-          AND NOT EXISTS (SELECT 1 FROM claps c WHERE c.task_id=t.id)
-          AND NOT EXISTS (SELECT 1 FROM events e WHERE e.task_id=t.id AND e.user_id<>t.owner_id)''', (stamp(KEEP_DAYS),))]
-    for table, column in (('dismissals', 'task_id'), ('task_tags', 'task_id'), ('events', 'task_id'), ('tasks', 'id')):
-        db.executemany(f'DELETE FROM {table} WHERE {column}=?', stale)
-    removed['stale_tasks'] = len(stale)
     return removed

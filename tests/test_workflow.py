@@ -728,9 +728,8 @@ class WorkflowTest(unittest.TestCase):
         moment = datetime.now(timezone.utc)
         ago = lambda days: (moment - timedelta(days=days)).isoformat(timespec='seconds')
         old_day = (datetime.fromisoformat(games.today()) - timedelta(days=games.DAILY_DAYS + 3)).date().isoformat()
-        # 截止一个多月、没人接也没人说过话的任务；同样旧但有人留过言的留着
+        # 截止一个多月、一直没人接的任务也留着
         stale = create_task(self.path, 1, self.data)
-        talked = create_task(self.path, 1, self.data)
         with connect(self.path, write=True) as db:
             runs = [(2, 'normal', ago(1.5), None, None, None),            # 开了没打完
                     (2, 'normal', ago(0.2), None, None, None),            # 刚开的一局留着
@@ -745,18 +744,17 @@ class WorkflowTest(unittest.TestCase):
             term = recap.term_of(moment - timedelta(days=games.DAILY_DAYS + 3))
             lines_before = recap.build(db, 2, term)['lines']
             stamp_before = (titles.counts(db, 2)['stamper'], games.stamp_best(db, 2)['normal'])
-            db.execute('UPDATE tasks SET deadline=? WHERE id IN (?,?)', (ago(40), stale, talked))
-            db.execute("INSERT INTO events (task_id,user_id,kind,body,created_at) VALUES (?,3,'comment','还有人做吗',?)", (talked, ago(41)))
+            db.execute('UPDATE tasks SET deadline=? WHERE id=?', (ago(40), stale))
             db.execute('INSERT INTO dismissals (user_id,task_id,created_at) VALUES (2,?,?),(3,?,?)', (stale, ago(50), self.task_id, ago(1)))
         removed = cleanup.run(self.path, force=True)
-        self.assertEqual(removed, dict(unfinished_runs=1, old_runs=1, daily_lines=3, dismissals=1, stale_tasks=1))
+        self.assertEqual(removed, dict(unfinished_runs=1, old_runs=1, daily_lines=3, dismissals=1))
         self.assertIsNone(cleanup.run(self.path))    # 今天清过了
         with connect(self.path) as db:
             self.assertEqual(titles.counts(db, 2)['oneline'], before)
             self.assertEqual(recap.build(db, 2, term)['lines'], lines_before)
             self.assertEqual((titles.counts(db, 2)['stamper'], games.stamp_best(db, 2)['normal']['score']), (stamp_before[0], stamp_before[1]['score']))
             self.assertEqual(db.execute('SELECT COUNT(*) FROM game_runs').fetchone()[0], 4)
-            self.assertEqual({row[0] for row in db.execute('SELECT id FROM tasks')}, {self.task_id, talked})
+            self.assertEqual({row[0] for row in db.execute('SELECT id FROM tasks')}, {self.task_id, stale})
             self.assertTrue(db.execute('SELECT 1 FROM dismissals WHERE task_id=?', (self.task_id,)).fetchone())
             self.assertFalse(db.execute('PRAGMA foreign_key_check').fetchall())
 
