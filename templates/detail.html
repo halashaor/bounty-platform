@@ -42,6 +42,7 @@
         {% if team %}<span>{{ '想要 ' ~ task.team_size ~ ' 人' if task.team_size else '人数不限' }}</span>{% endif %}
         <span>{{ flow_names[task.status] }}</span>
         <span>{{ task.owner_name }} 发布</span>
+        {% if ext_done %}<span>延期过 {{ ext_done|length }} 次</span>{% endif %}
       </div>
     </div>
     <div class="qband-reward">{{ medal(key, 'anim', label='完成可得 ' ~ medals[key].name) }}<div><b>{{ '一起做的每个人得' if team else '完成可得' }}「{{ medals[key].name }}」</b><br><span class="xp">{{ '每人 ' if team }}+{{ offer_xp(task) }} 经验</span></div></div>
@@ -152,6 +153,18 @@
       } %}
       {% set line = lines[feedback.action] %}
       <div class="receipt" data-confirmed-action="{{ feedback.action }}" role="status"><span class="stamp">{{ line[0] }}</span><div><b>{{ line[1] }}</b><small>{{ line[2] }}</small></div></div>
+      {% endif %}
+
+      {% if ext_checker and ext_pending and task.status == 'active' %}
+      <div class="act panel" id="extend">
+        <h3>{{ ext_pending.name }} 申请延期</h3>
+        <div class="est"><div><small>原定截止</small><b>{{ ext_pending.old_deadline|date }}</b></div><div><small>想延到</small><b>{{ ext_pending.new_deadline|date }}</b></div></div>
+        <p>理由：{{ ext_pending.reason }}</p>
+        <form method="post" action="{{ url_for('extend_task', task_id=task.id, move='yes') }}">
+          {{ csrf() }}<textarea name="body" maxlength="200" placeholder="回复一句（可不填）" aria-label="延期回复" style="min-height:64px"></textarea>
+          <div class="row"><button class="btn" formaction="{{ url_for('extend_task', task_id=task.id, move='yes') }}">同意延期</button><button class="btn btn-line" formaction="{{ url_for('extend_task', task_id=task.id, move='no') }}">不同意</button></div>
+        </form>
+      </div>
       {% endif %}
 
       {% if team %}
@@ -275,12 +288,38 @@
 
       {% endif %}
 
+      {% if ext_pending and (member if team else assignee) and not ext_checker %}
+      <div class="act panel" id="extend"><p class="warn-note">已申请延到 {{ ext_pending.new_deadline|date }}，等 {{ task.owner_name }} 回复。</p></div>
+      {% elif ext_ask and not ext_pending %}
+      <details class="add-piece" id="extend">
+        <summary>{{ icon('clock') }}来不及？申请延期</summary>
+        <form method="post" action="{{ url_for('extend_task', task_id=task.id, move='ask') }}">
+          {{ csrf() }}
+          <label class="field-inline">新的截止<small>按你这里的时间填</small><input type="datetime-local" name="deadline" required></label>
+          <input name="body" required maxlength="200" placeholder="为什么要延，比如「数据还没到」" aria-label="延期理由">
+          <button class="btn btn-sm">{{ icon('clock') }}申请延期</button>
+          <p class="add-note">{{ task.owner_name }} 同意后截止时间才会改。</p>
+        </form>
+      </details>
+      {% endif %}
+      {% if ext_push %}
+      <details class="add-piece"{% if not ext_pending %} id="extend"{% endif %}>
+        <summary>{{ icon('clock') }}延期</summary>
+        <form method="post" action="{{ url_for('extend_task', task_id=task.id, move='push') }}">
+          {{ csrf() }}
+          <label class="field-inline">新的截止<small>按你这里的时间填</small><input type="datetime-local" name="deadline" required></label>
+          <input name="body" maxlength="200" placeholder="说一句为什么延（可不填）" aria-label="延期说明">
+          <button class="btn btn-sm">{{ icon('clock') }}延期</button>
+        </form>
+      </details>
+      {% endif %}
+
       <dl class="tbl panel">
         <div><dt>委托人</dt><dd>{{ ava(task.owner_name, task.owner_id) }}{{ task.owner_name }}</dd></div>
         {% if team %}<div><dt>一起做</dt><dd>{{ seats(members, task.team_size, seat_open, 6) }}<small>{{ crew_text(task, members) }}</small></dd></div>
         {% else %}<div><dt>认领人</dt><dd>{% if task.assignee_name %}{{ ava(task.assignee_name, task.assignee_id) }}{{ task.assignee_name }}{% else %}<span class="muted">还没有人</span>{% endif %}</dd></div>{% endif %}
         {% if task.project %}<div><dt>项目</dt><dd><a href="{{ url_for('index', project=task.project, status='') }}">{{ task.project }}</a></dd></div>{% endif %}
-        <div><dt>截止</dt><dd>{{ left[0] if task.status != 'done' else '已完成' }}<small>{{ task.deadline|date }}</small></dd></div>
+        <div><dt>截止</dt><dd>{{ left[0] if task.status != 'done' else '已完成' }}<small>{{ task.deadline|date }}{% if ext_done %} · 原定 {{ ext_done[0].old_deadline|date }}{% endif %}</small></dd></div>
       </dl>
     </aside>
   </div>

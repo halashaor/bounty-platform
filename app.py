@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import unquote
 from flask import Flask, abort, flash, g, redirect, render_template, render_template_string, request, session, url_for, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
-from bounty import blocks, cleanup, discover, games, progress, recap, tags, teams, titles, unlocks
+from bounty import blocks, cleanup, discover, extend, games, progress, recap, tags, teams, titles, unlocks
 from bounty.db import connect, initialize
 from bounty.honors import COLD_DAYS, EFFORT, IMPORTANCE, URGENCY, MEDALS, cold_bonus, medal_key, task_xp
 from bounty.service import (CATEGORIES, STATUSES, KINDS, MAX_INTERESTS, MAX_TEAM, TEAM_TZ, InvalidAction, act, clap,
@@ -21,7 +21,10 @@ MY_TURN = '''((t.kind='solo' AND t.assignee_id=:me AND t.status='active')
     OR (t.kind='team' AND t.status='active' AND t.id IN (SELECT task_id FROM task_members WHERE user_id=:me))
     OR (t.status='review' AND t.kind='team' AND t.owner_id=:me)
     OR (t.status='review' AND t.kind='solo' AND t.assignee_id<>:me AND (t.owner_id=:me
-        OR t.parent_id IN (SELECT id FROM tasks WHERE owner_id=:me AND kind='team' AND status<>'done'))))'''
+        OR t.parent_id IN (SELECT id FROM tasks WHERE owner_id=:me AND kind='team' AND status<>'done')))
+    OR (t.status='active' AND EXISTS (SELECT 1 FROM extensions x WHERE x.task_id=t.id AND x.status='pending')
+        AND ((t.owner_id=:me AND (t.kind='team' OR t.assignee_id<>:me)) OR (t.kind='solo' AND t.assignee_id<>:me
+            AND t.parent_id IN (SELECT id FROM tasks WHERE owner_id=:me AND kind='team')))))'''
 
 
 def due_label(deadline):
@@ -365,18 +368,29 @@ def create_app(config=None):
             # 标签：从团队标签表里勾的，加上自己新写的（新写的会加进标签表）
             payload = request.form.to_dict()
             payload['tags'] = ' '.join(request.form.getlist('tags') + [request.form.get('new_tags', '')])
+            payload['members'] = request.form.getlist('members')
             try:
                 task_id = create_task(app.config['DATABASE'], g.user['id'], payload, g.tz)
-                flash('大任务已发布，等大家来加入。' if payload.get('kind') == 'team' else '任务已发布。', 'success')
+                if payload.get('kind') == 'team':
+                    message = '大任务已发布，指定的人已经加进来了。' if payload['members'] else '大任务已发布，等大家来加入。'
+                elif payload.get('assignee'):
+                    with database() as db:
+                        name = db.execute('SELECT name FROM users WHERE id=?', (payload['assignee'],)).fetchone()[0]
+                    message = f'任务已发布，交给 {name} 了。'
+                else:
+                    message = '任务已发布。'
+                flash(message, 'success')
                 return redirect(url_for('detail', task_id=task_id))
             except InvalidAction as error:
                 flash(str(error), 'error')
         with database() as db:
             team_tags = tags.listing(db)
             projects = [row['project'] for row in db.execute('SELECT DISTINCT project FROM tasks WHERE project IS NOT NULL ORDER BY project')]
+            people = db.execute('SELECT id,name FROM users WHERE id<>? ORDER BY name', (g.user['id'],)).fetchall()
         kind = request.form.get('kind') or ('team' if request.args.get('kind') == 'team' else 'solo')
         return render_template('new.html', team_tags=team_tags, projects=projects, picked=request.form.getlist('tags'),
-                               kind=kind, max_team=MAX_TEAM)
+                               kind=kind, max_team=MAX_TEAM, people=people, picked_members=request.form.getlist('members'),
+                               picked_assignee=request.form.get('assignee', ''))
 
     # ---------------- 团队共同维护标签 ----------------
     @app.get('/tags')
@@ -858,6 +872,9 @@ def create_app(config=None):
                 (award['user_id'], award['awarded_at'], award['awarded_at'], task_id)).fetchone()
             piece_tags = discover.tags_by_task(db, [piece['id'] for piece in pieces])
             team_tags = [row[0] for row in db.execute('SELECT name FROM org_tags ORDER BY position,name')] if team else []
+            ext_pending = extend.pending(db, task_id)
+            ext_done = extend.approved(db, task_id)
+            ext_checker = extend.checker(db, task, g.user['id'])
             why = []
             if task['owner_id'] != g.user['id'] and (task['status'] == 'open' or team and task['status'] == 'active'):
                 # 详情页按分量从高到低说理由（推荐卡上为了三张不重样，第一句会换）
@@ -873,7 +890,35 @@ def create_app(config=None):
                                claps=claps, new_kind=medal_key(task) not in earned, why=why[:3], first_timer=first_timer and not team,
                                debut=debut and not team, team=team, members=members, member=member, seat_open=seat_open,
                                pieces=pieces, piece_tags=piece_tags, team_tags=team_tags, credited=credited,
+                               ext_pending=ext_pending, ext_done=ext_done, ext_checker=ext_checker,
+                               ext_ask=task['status'] == 'active' and (member if team else task['assignee_id'] == g.user['id']) and not ext_checker,
+                               ext_push=ext_checker and task['status'] in ('open', 'active'),
                                pieces_busy=sum(piece['status'] in ('active', 'review') for piece in pieces))
+
+    @app.post('/tasks/<int:task_id>/extend/<move>')
+    @login_required
+    def extend_task(task_id, move):
+        if move not in ('ask', 'yes', 'no', 'push'):
+            abort(404)
+        try:
+            path, uid = app.config['DATABASE'], g.user['id']
+            deadline, body = request.form.get('deadline', ''), request.form.get('body', '')
+            if move == 'ask':
+                extend.ask(path, task_id, uid, deadline, body, g.tz)
+                with database() as db:
+                    name = db.execute('SELECT u.name FROM tasks t JOIN users u ON u.id=t.owner_id WHERE t.id=?',
+                                      (task_id,)).fetchone()[0]
+                message = f'已申请延期，等 {name} 回复。'
+            elif move == 'push':
+                extend.push(path, task_id, uid, deadline, body, g.tz)
+                message = '截止时间已延后。'
+            else:
+                extend.decide(path, task_id, uid, move == 'yes', body)
+                message = '已同意，截止时间延后了。' if move == 'yes' else '已回复，这次不延。'
+            flash(message, 'success')
+        except InvalidAction as error:
+            flash(str(error), 'error')
+        return redirect(url_for('detail', task_id=task_id) + '#extend')
 
     @app.post('/tasks/<int:task_id>/clap')
     @login_required

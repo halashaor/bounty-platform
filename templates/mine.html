@@ -9,7 +9,9 @@
 {%- set me = g.user.id -%}
 {%- set who = '你' if task.last_name == g.user.name else task.last_name -%}
 {%- set team = task.kind == 'team' -%}
-{%- if team and task.status == 'active' and task.member -%}{% set ball = '被退回，大家改' if task.state_kind == 'return' else '你们 ' ~ task.people ~ ' 人在做' %}
+{%- if task.status == 'active' and task.asks_extend and (task.owner_id == me if team else task.assignee_id != me and me in (task.owner_id, task.big_owner)) -%}{% set ball = '申请延期，等你回复' %}
+{%- elif task.status == 'active' and task.asks_extend and (task.member if team else task.assignee_id == me) -%}{% set ball = '申请了延期，等 ' ~ task.owner_name ~ ' 回复' %}
+{%- elif team and task.status == 'active' and task.member -%}{% set ball = '被退回，大家改' if task.state_kind == 'return' else '你们 ' ~ task.people ~ ' 人在做' %}
 {%- elif team and task.status == 'review' and task.owner_id == me -%}{% set ball = '等你验收' %}
 {%- elif team and task.status == 'review' -%}{% set ball = '交了，等 ' ~ task.owner_name ~ ' 验收' %}
 {%- elif team and task.status == 'active' -%}{% set ball = task.people ~ ' 人在做' %}

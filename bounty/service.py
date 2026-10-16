@@ -14,7 +14,8 @@ MAX_INTERESTS = 8
 TEAM_TZ = timezone(timedelta(hours=float(os.environ.get('BOUNTY_TZ_OFFSET', '8'))))
 STATUSES = {'open': '待认领', 'active': '进行中', 'review': '待验收', 'done': '已完成'}
 KINDS = {'claim': '认领任务', 'submit': '提交成果', 'accept': '验收通过', 'return': '退回修改', 'comment': '讨论', 'settle': '历史结算记录',
-         'join': '加入', 'leave': '退出', 'split': '拆出分工'}
+         'join': '加入', 'leave': '退出', 'split': '拆出分工', 'extend_ask': '申请延期', 'extend': '延期',
+         'extend_no': '没同意延期', 'assign': '指定'}
 # 大任务（kind='team'）好几个人一起做：想要几个人可以不限，限的话在这个范围里
 MAX_TEAM = 20
 
@@ -125,12 +126,44 @@ def create_task(path, user_id, data, tz=None):
             raise InvalidAction(f'大任务想要的人数在 2 到 {MAX_TEAM} 之间，或者不限。')
         team_size = int(raw)
     with connect(path, write=True) as db:
+        # 两组字段都会随表单提交，只读这类任务用到的那组
+        if kind == 'team':
+            picked = data.get('members') or []
+        else:
+            picked = [data['assignee']] if data.get('assignee') else []
+        people = []
+        for raw in picked:
+            try:
+                uid = int(raw)
+            except (TypeError, ValueError):
+                raise InvalidAction('指定的人不存在。')
+            if not 0 < uid < 2 ** 63:
+                raise InvalidAction('指定的人不存在。')
+            if uid == user_id:
+                raise InvalidAction('不能指定自己，大任务想一起做就勾「我也一起做」。')
+            person = db.execute('SELECT id,name FROM users WHERE id=?', (uid,)).fetchone()
+            if not person:
+                raise InvalidAction('指定的人不存在。')
+            if uid not in [person['id'] for person in people]:
+                people.append(person)
+        if kind == 'team' and team_size and len(people) + bool(data.get('join_self')) > team_size:
+            raise InvalidAction('指定的人比想要的人数还多。')
         task_id = insert_task(db, user_id, title, description, requirements, tags, project, importance, urgency, deadline,
                               kind, team_size)
         if kind == 'team' and data.get('join_self'):   # 发布者自己也一起做
             _join(db, db.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone(), user_id)
             db.execute('INSERT INTO events (task_id,user_id,kind,body,created_at) VALUES (?,?,?,?,?)',
                        (task_id, user_id, 'join', '我也一起做。', now()))
+        if people:
+            if kind == 'solo':
+                db.execute("UPDATE tasks SET assignee_id=?, status='active', cold=0 WHERE id=?", (people[0]['id'], task_id))
+                body = f'指定 {people[0]["name"]} 来做。'
+            else:
+                for person in people:
+                    _join(db, db.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone(), person['id'])
+                body = '指定 ' + '、'.join(person['name'] for person in people) + ' 一起做。'
+            db.execute('INSERT INTO events (task_id,user_id,kind,body,created_at) VALUES (?,?,?,?,?)',
+                       (task_id, user_id, 'assign', body, now()))
         return task_id
 
 
@@ -201,6 +234,7 @@ def act(path, task_id, user_id, action, body='', credit=None):
             elif not assignee or status != 'active' or not body:
                 raise InvalidAction('仅认领人可提交进行中的任务，成果说明不能为空。')
             db.execute("UPDATE tasks SET status='review' WHERE id=?", (task_id,))
+            db.execute("UPDATE extensions SET status='closed' WHERE task_id=? AND status='pending'", (task_id,))
         elif action in ('accept', 'return'):
             if team and (not owner or status != 'review'):
                 raise InvalidAction('仅发布者可验收待验收的大任务。')
@@ -223,6 +257,8 @@ def act(path, task_id, user_id, action, body='', credit=None):
             elif action == 'accept':
                 db.execute('INSERT INTO honors (task_id,user_id,medal_key,awarded_at,bonus) VALUES (?,?,?,?,?)',
                            (task_id, task['assignee_id'], key, now(), bonus))
+            if action == 'accept':
+                db.execute("UPDATE extensions SET status='closed' WHERE task_id=? AND status='pending'", (task_id,))
             db.execute('UPDATE tasks SET status=? WHERE id=?', ('done' if action == 'accept' else 'active', task_id))
             body = body or '成果验收通过。'
         elif action == 'comment':

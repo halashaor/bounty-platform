@@ -46,6 +46,18 @@
       <label class="field"><span>截止时间<small>按你这里的时间填</small></span>
         <input type="datetime-local" name="deadline" required value="{{ form.get('deadline', '') }}"></label>
     </div>
+    <div class="field solo-only"><span>指定谁来做<small>可选；不指定就发到「发现」里，谁都能接</small></span>
+      <div class="tag-pick assign-pick">
+        <label class="chip"><input type="radio" name="assignee" value="" {% if not picked_assignee %}checked{% endif %}>不指定</label>
+        {% for person in people %}<label class="chip"><input type="radio" name="assignee" value="{{ person.id }}" {% if picked_assignee == person.id|string %}checked{% endif %}>{{ ava(person.name, person.id) }}{{ person.name }}</label>{% endfor %}
+      </div>
+      <small class="field-note">指定后任务直接交给 TA，进入「进行中」，不会出现在「发现」里。</small>
+    </div>
+    <div class="field team-only"><span>指定谁一起做<small>可选，可以多选；之后别人还能加入</small></span>
+      <div class="tag-pick assign-pick">
+        {% for person in people %}<label class="chip"><input type="checkbox" name="members" value="{{ person.id }}" {% if person.id|string in picked_members %}checked{% endif %}>{{ ava(person.name, person.id) }}{{ person.name }}</label>{% endfor %}
+      </div>
+    </div>
     <div class="two team-only">
       <label class="field"><span>想要几个人<small>人够了就不再招人</small></span>
         <select name="team_size">{% set size = form.get('team_size', '') %}<option value="">不限</option>{% for n in [2, 3, 4, 5, 6, 8, 10] %}<option value="{{ n }}" {% if size == n|string %}selected{% endif %}>{{ n }} 人</option>{% endfor %}</select></label>
