@@ -128,6 +128,19 @@ CREATE TABLE IF NOT EXISTS lines_solved (
  solved_at TEXT NOT NULL,
  PRIMARY KEY(user_id,level)
 );
+CREATE TABLE IF NOT EXISTS extensions (
+ id INTEGER PRIMARY KEY,
+ task_id INTEGER NOT NULL REFERENCES tasks(id),
+ user_id INTEGER NOT NULL REFERENCES users(id),
+ old_deadline TEXT NOT NULL,
+ new_deadline TEXT NOT NULL,
+ reason TEXT NOT NULL,
+ status TEXT NOT NULL CHECK(status IN ('pending','approved','rejected','closed')),
+ created_at TEXT NOT NULL,
+ decided_by INTEGER REFERENCES users(id),
+ decided_at TEXT
+);
+CREATE INDEX IF NOT EXISTS extensions_by_task ON extensions(task_id);
 '''
 
 
