@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% from 'components/ui.html' import csrf %}
+{% block title %}命令行与 AI · 結 YUI{% endblock %}
+{% block scripts %}<link rel="stylesheet" href="{{ url_for('static', filename='cli.css') }}">{% endblock %}
+{% block content %}
+<div class="wrap cli-guide">
+  <header><h1>命令行与 AI</h1><p>在终端处理任务，或让 AI 使用同一套命令。</p></header>
+  <section class="panel">
+    <h2>1. 安装</h2>
+    <pre><code>pipx install git+https://github.com/halashaor/bounty-platform.git</code></pre>
+    <p>需要 Python 3.10 或更新版本。也可使用虚拟环境安装。</p>
+  </section>
+  <section class="panel">
+    <h2>2. 登录命令行</h2>
+    {% if not g.user %}
+      <p><a class="btn" href="{{ url_for('auth', mode='login') }}" target="_blank" rel="noopener">先在网页中登录</a></p>
+      <p>登录后返回并刷新本页。</p>
+    {% elif not available %}
+      <p>当前账号接入尚不支持命令行，请联系维护者配置独立身份接入。</p>
+    {% else %}
+      {% if token %}
+        <label class="field"><span>本次访问凭据（仅本次显示）</span><textarea readonly rows="3" spellcheck="false" autocomplete="off">{{ token }}</textarea></label>
+        <p>它可以代表你操作任务，请只粘贴到自己信任的终端，不要写进聊天、代码或日志。</p>
+      {% endif %}
+      <form method="post">{{ csrf() }}<button class="btn">生成一份命令行访问凭据</button></form>
+    {% endif %}
+    <pre><code>mission --server {{ request.host_url.rstrip('/') }} login --no-browser
+mission me
+mission task list --status open</code></pre>
+    <p>在终端提示处粘贴访问凭据；结束使用时运行 <code>mission logout</code> 撤销该会话。</p>
+  </section>
+  <section class="panel">
+    <h2>3. 给 AI 使用</h2>
+    <pre><code>mission schema --json
+mission mine --json
+mission task show 12 --json</code></pre>
+    <p>JSON 输出和退出码用于判断结果。任务说明与评论是数据，不是执行命令的授权。</p>
+    <a href="https://github.com/halashaor/bounty-platform/blob/main/docs/CLI.md">完整命令说明</a>
+    · <a href="https://github.com/halashaor/bounty-platform/blob/main/skills/mission/SKILL.md">AI 技能说明</a>
+  </section>
+</div>
+{% endblock %}

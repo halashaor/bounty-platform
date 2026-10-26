@@ -10,6 +10,12 @@
 
 用 Docker 部署到服务器的做法见 [云端部署](deploy/README.md)。账号、邀请码和数据库不随源码发布。
 
+## 命令行与 AI
+
+安装 `mission-team-cli` 后可用 `mission` 查询、发布、认领、提交、验收和延期。网页 `/cli` 提供独立命令行会话入口；AI 使用 `--json` 和离线 `mission schema --json`。
+
+见 [命令与 API 说明](docs/CLI.md) 和 [AI 技能](skills/mission/SKILL.md)。客户端需要匹配的新版服务端，安装 CLI 不会自动更新线上应用。
+
 ## 获取与源码运行
 
 GitHub Releases 里的 v1.0.0、v1.1.0 是旧版界面（当时叫「搭把手」）。现在的版本从源码运行；需要离线运行包时用 `python scripts/build_release.py` 自己打一个。

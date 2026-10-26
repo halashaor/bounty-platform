@@ -1,0 +1,7 @@
+.cli-guide { max-width: 850px; padding-block: 32px; }
+.cli-guide .panel { margin-top: 20px; padding: 24px; }
+.cli-guide h2 { margin-bottom: 16px; }
+.cli-guide p { margin-block: 14px; line-height: 1.6; }
+.cli-guide pre { max-width: 100%; overflow-x: auto; padding: 16px; border-radius: 12px; background: #f2f3f5; }
+.cli-guide textarea { width: 100%; overflow-wrap: anywhere; }
+@media (max-width: 480px) { .cli-guide .panel { padding: 16px; } }

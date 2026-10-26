@@ -47,10 +47,22 @@ class CentralAccounts(TeamAccounts):
             identity = self.access(db, user['id']) if user else None
             if not user or not user['enabled'] or not identity or identity['provider_pk'] != claims.get('portal_pk'):
                 abort(403, description='你暂时没有任务平台的使用权限，请在统一门户查看。')
-            token = self.issue(db, user)
-            db.execute('INSERT INTO identity_session_scopes VALUES(?,?,?)',
-                       (hashlib.sha256(token.encode()).hexdigest(), 'mission', identity['epoch']))
-            return self.public(user), token
+            return self._mission_session(db, user, identity)
+
+    def _mission_session(self, db, user, identity):
+        token = self.issue(db, user)
+        db.execute('INSERT INTO identity_session_scopes VALUES(?,?,?)',
+                   (hashlib.sha256(token.encode()).hexdigest(), 'mission', identity['epoch']))
+        return self.public(user), token
+
+    def cli_login(self, user_id):
+        """A separately revocable session, issued only after authenticated browser approval."""
+        with self.connection(write=True) as db:
+            user = db.execute('SELECT * FROM accounts WHERE id=?', (user_id,)).fetchone()
+            identity = self.access(db, user_id)
+            if not user or not user['enabled'] or not identity:
+                abort(403, description='你暂时没有任务平台的使用权限。')
+            return self._mission_session(db, user, identity)
 
     def principal(self, token):
         if not isinstance(token, str) or len(token) != 64 or any(c not in '0123456789abcdef' for c in token):
@@ -91,6 +103,14 @@ def install(app, accounts_path, config_path):
             db.execute("INSERT OR IGNORE INTO users(name,password,identity_id) VALUES(?,'!',?)", (identity['name'], identity['id']))
             db.execute('UPDATE users SET name=? WHERE identity_id=?', (identity['name'], identity['id']))
             return db.execute('SELECT id,name FROM users WHERE identity_id=?', (identity['id'],)).fetchone()
+
+    def cli_principal(token):
+        identity = accounts.principal(token)
+        return profile(identity) if identity else None
+
+    app.extensions['mission_cli_auth'] = dict(
+        issue=lambda: accounts.cli_login(g.identity['id'])[1],
+        authenticate=cli_principal, revoke=accounts.logout)
 
     @app.before_request
     def central_user():
