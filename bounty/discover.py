@@ -290,6 +290,7 @@ def person_stats(db, user_id):
 def my_tasks(db, user_id):
     """Group a person's tasks by whose move it is, newest activity first."""
     rows = db.execute('''SELECT t.*,u.name owner_name,a.name assignee_name,b.title big_title,b.owner_id big_owner,
+            EXISTS(SELECT 1 FROM extensions x WHERE x.task_id=t.id AND x.status='pending') asks_extend,
             EXISTS(SELECT 1 FROM task_members m WHERE m.task_id=t.id AND m.user_id=:me) member,
             (SELECT COUNT(*) FROM task_members m WHERE m.task_id=t.id) people,
             (SELECT kind FROM events e WHERE e.task_id=t.id AND e.kind IN ('claim','submit','return','accept') ORDER BY e.id DESC LIMIT 1) state_kind,
@@ -300,6 +301,7 @@ def my_tasks(db, user_id):
             (SELECT created_at FROM events e WHERE e.task_id=t.id ORDER BY e.id DESC LIMIT 1) last_at
         FROM tasks t JOIN users u ON u.id=t.owner_id LEFT JOIN users a ON a.id=t.assignee_id LEFT JOIN tasks b ON b.id=t.parent_id
         WHERE t.owner_id=:me OR t.assignee_id=:me OR member OR (t.status='review' AND b.owner_id=:me AND b.status<>'done')
+            OR (t.kind='solo' AND t.status='active' AND asks_extend AND t.assignee_id<>:me AND b.owner_id=:me)
         ORDER BY COALESCE(last_at,t.created_at) DESC,t.id DESC''', dict(me=user_id)).fetchall()
     groups = {'yours': [], 'waiting': [], 'unclaimed': [], 'done': []}
     for task in rows:
@@ -308,7 +310,9 @@ def my_tasks(db, user_id):
         # 大任务由发布者验收；从大任务里拆出来的分工，大任务的发布者也能验收
         mine_to_check = task['status'] == 'review' and (task['owner_id'] == user_id if team else
                                                         task['assignee_id'] != user_id and user_id in (task['owner_id'], task['big_owner']))
-        if mine_to_do or mine_to_check:
+        mine_to_reply = task['status'] == 'active' and task['asks_extend'] and (task['owner_id'] == user_id if team else
+                            task['assignee_id'] != user_id and user_id in (task['owner_id'], task['big_owner']))
+        if mine_to_do or mine_to_check or mine_to_reply:
             groups['yours'].append(task)
         elif task['status'] in ('active', 'review'):
             groups['waiting'].append(task)
