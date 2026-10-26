@@ -4,6 +4,8 @@
 发布任务、认领、提交、退回、验收、讨论和勋章都是真实操作，会保存到数据库。
 任务分两种：**小任务**一个人认领、一个人做完；**大任务**好几个人加入、一起做完，发布者自己也能一起做。
 
+开发者和 AI 代理统一遵守 [开发守则](AGENTS.md)；当前功能边界见 [功能清单](docs/FEATURES.md)，开发与测试入口见 [参与开发](CONTRIBUTING.md)。
+
 ## 部署到服务器
 
 用 Docker 部署到服务器的做法见 [云端部署](deploy/README.md)。账号、邀请码和数据库不随源码发布。
@@ -67,7 +69,7 @@ mission 不分管理员和普通成员。登录后的成员都可以打开「标
 
 ### 生产统一账号
 
-生产入口为 `wsgi:create_cloud_app()`，使用独立的公共账号库，和计算平台共用注册、密码与登录会话。两平台直接访问这个库，不互调业务 API，不复制密码，不挂载对方的业务库。具体安装与成对切换见 [deploy/README.md](deploy/README.md)。
+生产入口为 `wsgi:create_cloud_app()`，通过独立身份服务的 OIDC/PKCE 登录；Mission 与计算平台使用同一身份，各自保留本域会话，不共享父域登录 cookie。账号、邀请码、密码恢复和应用授权由统一门户管理，Mission 使用无密码身份视图，不复制密码、不挂载计算平台业务库、不互调业务 API。接入配置见 [deploy/README.md](deploy/README.md)。
 
 源码本地运行仍可使用独立演示数据；已经迁入统一账号的数据目录必须配置 `TEAM_ACCOUNTS_DATABASE`，缺失时启动失败，防止意外启用第二套本地账号。
 
@@ -101,8 +103,8 @@ ZIP 内的 `instance/bounty.sqlite3` 是专门新生成的演示数据库，不�
 
 ## 实现范围
 
-- 独立注册、密码哈希、登录、退出和会话保存。
-- **发现**：最上面是方向条，就是团队的标签表（带管理员写的说明），每次进来都能重新点想做的方向，点完不用保存，也不用自己输入。下面是两排互不重复的推荐：
+- 本地演示支持独立注册、密码哈希、登录和退出；生产站使用上文的独立身份接入。
+- **发现**：最上面是方向条，就是团队的标签表（带团队成员维护的说明），每次进来都能重新点想做的方向，点完不用保存，也不用自己输入。下面是两排互不重复的推荐：
   - 「按你选的方向」只看这次选的方向，几张卡轮流照顾到每个方向，改方向时这一排当场重新发牌；
   - 「按你做过的」只看自己的经历（做完过的标签、参与过的项目、和做过的任务内容相似），标题旁列出你常做的标签；还没做过任务时换成好上手、能拿新勋章的任务。
   每张卡写明理由，可以「换一批」或「不感兴趣」（都不刷新页面）。推荐全部由数据实时算出，不写死任何分类，新项目、新标签会自动出现在方向条和推荐里。
@@ -187,7 +189,9 @@ python manage.py --data-dir my-data backup backups/my-data.sqlite3
 - `bounty/discover.py`：推荐打分、团队动态、我的任务分组等只读查询。
 - `bounty/progress.py`：经验和等级、勋章凑齐一行、团队收集包。
 - `bounty/titles.py`：称号的解锁条件和进度。
-- `bounty/tags.py`：团队的标签表和管理员操作。
+- `bounty/tags.py`：所有登录成员共同维护的团队标签表。
+- `bounty/extend.py`：延期申请、审批和直接延期。
+- `bounty/central_auth.py`：生产 OIDC 接入、本域会话和应用授权。
 - `bounty/unlocks.py`：勋章在縁側解锁什么（积木颜色和零件、游戏玩法、印章样式）。
 - `bounty/blocks.py`：积木零件的尺寸、重力、作品的检查和存取，以及平面作品的升级。
 - `bounty/cleanup.py`：每天一次的旧数据清理。
@@ -200,7 +204,7 @@ python manage.py --data-dir my-data backup backups/my-data.sqlite3
 - `tests/`：后端流程、权限、冲突、持久化、推荐、经验和颁奖测试。
 
 没有独立前端构建步骤，不需要额外启动一个前端服务器。
-任务、讨论、勋章等业务数据独立；生产认证依赖公共 team-accounts 包和账号库，不依赖另一业务平台的进程或数据接口。
+任务、讨论、勋章等业务数据独立；生产认证复用 `team-accounts` 包并接入独立身份服务及无密码视图，不依赖另一业务平台的进程或数据接口。
 
 ## 验证与开发
 
@@ -210,6 +214,6 @@ python manage.py --data-dir my-data backup backups/my-data.sqlite3
 python -c "import run,unittest; result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.discover('tests')); raise SystemExit(not result.wasSuccessful())"
 ```
 
-源码目录没有 `vendor/` 时，可执行 `python -m pip install -r requirements.txt` 安装依赖。
+基础本地演示可安装 `requirements.txt`；完整后端及身份接入测试需要 `python -m pip install -r requirements-cloud.txt`。
 可选浏览器测试 `python scripts/check_motion.py` 需要额外安装 `websocket-client` 和 Chromium；与普通使用无关。
 验证范围及发布信息见 `RELEASE_NOTES.txt`。Windows 启动脚本已提供，尚未在原生 Windows Python 环境实机执行。
