@@ -102,6 +102,11 @@ def create_app(config=None):
 
     @app.after_request
     def response_headers(response):
+        if request.path.startswith('/api/v1/') and response.status_code >= 400 and not response.is_json:
+            response.set_data(app.json.dumps(dict(ok=False, error=dict(
+                code='server_error' if response.status_code >= 500 else 'http_error',
+                message='服务器暂时无法完成请求；写入可能已生效，请先查询任务。' if response.status_code >= 500 else '请求无法处理，请检查参数。'))))
+            response.mimetype = 'application/json'
         response.headers.setdefault('X-Content-Type-Options', 'nosniff')
         response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
         response.headers.setdefault('Referrer-Policy', 'same-origin')
@@ -138,7 +143,8 @@ def create_app(config=None):
             session['csrf'] = secrets.token_hex(24)
         # 表单放在 csrf 字段里；积木存档这类 JSON 请求放在 X-CSRF-Token 头里
         token = request.form.get('csrf') or request.headers.get('X-CSRF-Token', '')
-        if request.method == 'POST' and not secrets.compare_digest(session['csrf'].encode('utf-8'), token.encode('utf-8')):
+        # The JSON API accepts explicit bearer credentials only, never cookie authentication.
+        if request.method == 'POST' and request.blueprint != 'mission_api' and not secrets.compare_digest(session['csrf'].encode('utf-8'), token.encode('utf-8')):
             abort(400, description='表单已过期，请刷新后重试。')
 
     def login_required(view):
@@ -964,11 +970,15 @@ def create_app(config=None):
     @app.errorhandler(404)
     @app.errorhandler(413)
     def error_page(error):
+        if request.path.startswith('/api/v1/'):
+            return jsonify(ok=False, error=dict(code='http_error', message=error.description)), error.code
         return render_template('error.html', error=error), error.code
 
     if app.config.get('TEAM_ACCOUNTS_DATABASE') or os.environ.get('TEAM_ACCOUNTS_DATABASE'):
         from bounty.team_auth import install
         install(app, app.config.get('TEAM_ACCOUNTS_DATABASE') or os.environ['TEAM_ACCOUNTS_DATABASE'])
+    from bounty.api import install as install_api
+    install_api(app)
     return app
 
 

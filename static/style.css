@@ -318,3 +318,5 @@ html[data-motion="off"] *,html[data-motion="off"] *::before,html[data-motion="of
   .top-in{height:auto;min-height:var(--top);padding-top:8px;padding-bottom:8px;flex-wrap:wrap;gap:6px}
   .top-right{flex-basis:100%;justify-content:flex-end}
 }
+.cli-entry { display: block; width: fit-content; margin: 24px auto 96px; font-size: 13px; color: #606574; }
+.cli-entry a { display: inline-flex; align-items: center; min-height: 44px; padding: 4px 12px; }

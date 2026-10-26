@@ -45,4 +45,20 @@ class CentralIdentityTest(unittest.TestCase):
         with self.assertRaises(Exception) as result:self.accounts.oidc_login({'team_id':'member','portal_pk':11})
         self.assertEqual(result.exception.code,403)
 
+    def test_cli_session_is_independent_and_obeys_identity_revocation(self):
+        browser = self.token()
+        _, cli = self.accounts.cli_login('member')
+        self.assertNotEqual(browser, cli)
+        self.assertEqual(self.accounts.principal(cli)['id'], 'member')
+        self.accounts.logout(cli)
+        self.assertIsNone(self.accounts.principal(cli))
+        self.assertEqual(self.accounts.principal(browser)['id'], 'member')
+        _, cli = self.accounts.cli_login('member')
+        self.execute("UPDATE identity_users SET epoch='password-changed'")
+        self.assertIsNone(self.accounts.principal(cli))
+        self.execute('UPDATE identity_access SET allowed=0')
+        with self.assertRaises(Exception) as result:
+            self.accounts.cli_login('member')
+        self.assertEqual(result.exception.code, 403)
+
 if __name__=='__main__':unittest.main()

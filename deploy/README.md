@@ -1,5 +1,7 @@
 # mission 生产部署
 
+命令行/API 随应用镜像一同发布，客户端单独安装，见 [CLI 文档](../docs/CLI.md)。正式身份配置不变；命令行会话仍通过现有身份视图检查停用、应用撤权和密码变更。应用更新后 `/cli` 才能生成凭据，旧版服务端不支持这些接口。本地演示会新增 `cli_local_sessions` 表；生产 OIDC 模式复用现有会话表，不创建本地凭据后门。
+
 生产使用 `wsgi:create_cloud_app()`、Gunicorn 和 HTTPS 反向代理。正式站通过独立身份服务 OIDC/PKCE 登录，读取无密码身份视图，并保存 Mission 自己的本域会话；不与计算平台共享父域 cookie，不读取其业务库、不调用其业务 API。身份接入复用固定版本的 `team-accounts` 包。
 
 公共包来自 [STARGATE 的 accounts 目录](https://github.com/Jarv1sP/stargate/tree/main/accounts)，实际构建版本以 `requirements-cloud.txt` 固定提交为准。身份服务及视图由其维护者配置；日常业务发布保留已有身份配置，不重复提取或迁移账号。

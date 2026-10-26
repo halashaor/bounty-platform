@@ -1,4 +1,6 @@
 .venv/
+*.egg-info/
+build/
 wheels/
 .deployment-private/
 __pycache__/

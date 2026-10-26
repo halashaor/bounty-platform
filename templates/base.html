@@ -71,6 +71,7 @@
     {% endfor %}{% endif %}
   </div>
   <main id="main">{% block content %}{% endblock %}</main>
+  {% if g.user %}<footer class="cli-entry"><a href="{{ url_for('mission_cli.access') }}">命令行与 AI</a></footer>{% endif %}
   <div class="toasts" aria-live="polite"></div>
 </body>
 </html>
