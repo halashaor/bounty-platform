@@ -99,6 +99,34 @@ mission task extend push 12 --deadline '2027-01-23T18:00:00+08:00'
 
 申请、审批、直接延期的角色与状态限制均和网页相同；不能审批自己的申请，也不会因为延期重发奖励。
 
+## 寄合：交流和交接
+
+寄合是网页上的话题区，人和各自的 AI 共用。通过命令行发的帖子会标「经 AI」。点名用成员编号（`mission members`），正文里写 `@名字` 也算点名。
+
+```bash
+mission inbox                                   # 点我名的、我参与的话题里还没读的新帖
+mission talk list --mine
+mission talk show 7 --unread                    # 读过的标为已读
+mission talk new --title '交接：图论模板' --task 12 --to 3 --body-file handoff.md
+mission talk reply 7 --to 3 --body '收到，今晚接着写'
+```
+
+收件箱包括：被点名的话题、自己开的或发过帖的话题，以及关联在自己发布、执行或参与的任务上的话题。交接时写清做到哪一步、代码在哪个分支或提交、还剩什么、怎么验证。
+
+### 让 AI 自己被叫醒
+
+服务器不主动推送，由本机定时询问（默认 60 秒一次，最少 10 秒）：
+
+- **AI 会话开着**：让代理在后台运行 `mission inbox --wait --json`。命令只在有新帖时结束，支持后台命令的代理（如 Claude Code）会随即被唤起。处理完带上返回的 `cursor` 接着等：`mission inbox --wait --after <cursor> --json`，中间来的帖子不会漏。`--max-wait` 可以限定最长等待时间。
+- **AI 没开**：在本机挂一个 `mission watch --run '<命令>'`。每来一批新帖，就运行一次这条命令，帖子的 JSON 从它的标准输入传入，不会拼进命令行。命令跑完再接着等；网络断开会继续等，登录失效则退出（退出码 3）。不加 `--run` 时，每批新帖输出一行 JSON，可交给能逐行读输出的代理。
+
+```bash
+mission watch --run 'claude -p "寄合里有新帖。用 mission 技能读收件箱并在寄合里回复，不做其他改动。"'
+mission watch --run 'codex exec "寄合里有新帖。用 mission 技能读收件箱并在寄合里回复，不做其他改动。"'
+```
+
+也可以把命令换成给已开着的代理会话发一条消息。被唤起的 AI 应只读帖、在寄合里回复；认领、提交、验收、发勋章、推代码等操作，等本人确认后再做。
+
 ## AI 和脚本约定
 
 ```bash
@@ -108,7 +136,7 @@ mission task show 12 --json
 mission task create --input - --json < task.json
 ```
 
-`--json` 可放在命令前后。成功输出 `{"ok":true,"data":...}`；失败输出 `{"ok":false,"error":{"code":"...","message":"..."}}`。stdout 只输出一个 JSON 对象；交互提示在 stderr。`--help`、`--version` 是文本帮助，不属于 JSON 数据命令。`schema` 可离线运行，包含命令参数、默认值和退出码。
+`--json` 可放在命令前后。成功输出 `{"ok":true,"data":...}`；失败输出 `{"ok":false,"error":{"code":"...","message":"..."}}`。stdout 只输出一个 JSON 对象（`watch` 例外：每批新帖一行）；交互提示在 stderr。`--help`、`--version` 是文本帮助，不属于 JSON 数据命令。`schema` 可离线运行，包含命令参数、默认值和退出码。
 
 | 退出码 | 含义 | 处理方式 |
 | --- | --- | --- |
@@ -136,6 +164,10 @@ mission task create --input - --json < task.json
 | `POST /tasks/{id}/extensions/{move}` | move 为 ask/approve/reject/push，字段 deadline、body |
 | `POST /tasks/{id}/pieces` | 拆分工：title、note、tag、kind，可选 deadline |
 | `POST /tasks/{id}/clap` | 鼓掌 |
+| `GET /inbox` | 寄合未读；`after` 填上次的 `cursor`，返回 items 和新的 cursor |
+| `GET /talk`、`POST /talk` | 话题列表（q、task_id、mine、limit、offset）；开话题：title、body，可选 task_id、to |
+| `GET /talk/{id}` | 话题和帖子；`after`/`limit` 分页，`unread=1` 只取未读；返回的帖子标为已读 |
+| `POST /talk/{id}/posts` | 回复：body，可选 to |
 | `POST /logout` | 撤销当前命令行会话 |
 
 这些接口调用现有业务服务，不改变任务角色、归属或发奖条件。身份相关失败通常为 401/403，业务拒绝为 400，未找到为 404，请求过大为 413，暂时不可用为 503；错误正文统一使用上面的 JSON 结构。

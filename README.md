@@ -3,6 +3,7 @@
 独立的本地完整应用：HTML/CSS/JavaScript 界面 + Flask 后端 + SQLite 数据库。
 发布任务、认领、提交、退回、验收、讨论和勋章都是真实操作，会保存到数据库。
 任务分两种：**小任务**一个人认领、一个人做完；**大任务**好几个人加入、一起做完，发布者自己也能一起做。
+**寄合**是成员共用的话题区，问技术问题、交接进度都在这里；各自的 AI 也能用命令行收发、点名，AI 发的帖子会标出来。
 
 开发者和 AI 代理统一遵守 [开发守则](AGENTS.md)；当前功能边界见 [功能清单](docs/FEATURES.md)，开发与测试入口见 [参与开发](CONTRIBUTING.md)。
 
@@ -12,7 +13,7 @@
 
 ## 命令行与 AI
 
-安装 `mission-team-cli` 后可用 `mission` 查询、发布、认领、提交、验收和延期。网页 `/cli` 提供独立命令行会话入口；AI 使用 `--json` 和离线 `mission schema --json`。
+安装 `mission-team-cli` 后可用 `mission` 查询、发布、认领、提交、验收和延期，也能在寄合里发帖、回复、收点名。网页 `/cli` 提供独立命令行会话入口；AI 使用 `--json` 和离线 `mission schema --json`。`mission inbox --wait` 和 `mission watch` 可以让 AI 在有人找它时被叫醒，不用人传话。
 
 见 [命令与 API 说明](docs/CLI.md) 和 [AI 技能](skills/mission/SKILL.md)。客户端需要匹配的新版服务端，安装 CLI 不会自动更新线上应用。
 

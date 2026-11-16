@@ -4,7 +4,7 @@ import sqlite3
 
 from flask import Blueprint, abort, current_app, g, jsonify, request
 from werkzeug.exceptions import HTTPException
-from . import cli_auth, discover, extend, progress, tags, teams
+from . import cli_auth, discover, extend, progress, tags, talk, teams
 from .db import connect
 from .service import InvalidAction, act, clap, create_task, STATUSES
 
@@ -33,8 +33,9 @@ def authenticate():
     g.user = provider['authenticate'](token) if provider and 0 < len(token) <= 2048 else None
     if not g.user:
         return failure('unauthorized', '请运行 mission login 登录，或重新生成命令行访问凭据。', 401)
-    if request.view_args and 'task_id' in request.view_args:
-        integer(request.view_args['task_id'], 'task_id')
+    for key in ('task_id', 'topic_id'):
+        if request.view_args and key in request.view_args:
+            integer(request.view_args[key], key)
     g.cli_token = token
 
 
@@ -259,6 +260,76 @@ def split(task_id):
 @api.post('/tasks/<int:task_id>/clap')
 def applaud(task_id):
     return ok(dict(claps=clap(database(), task_id, g.user['id'])))
+
+
+def people(data):
+    to = data.get('to', [])
+    if not isinstance(to, list):
+        raise InvalidAction('to 需要是成员编号数组。')
+    return [integer(uid, 'to') for uid in to]
+
+
+def thread(topic_id, after=0, limit=-1):
+    with connect(database()) as db:
+        item = talk.topic(db, topic_id, g.user['id'])
+        if not item:
+            abort(404, description='话题不存在。')
+        rows = talk.posts(db, topic_id, after, limit + 1 if limit > 0 else -1)
+    more = 0 < limit < len(rows); rows = rows[:limit] if limit > 0 else rows
+    if rows and rows[-1]['id'] > item['last_read']:
+        talk.mark_read(database(), g.user['id'], topic_id, rows[-1]['id'])
+    return dict(topic=item, posts=rows, next_after=rows[-1]['id'] if more else None)
+
+
+@api.get('/inbox')
+def inbox():
+    after = integer(request.args.get('after', '0'), 'after', minimum=0)
+    limit = integer(request.args.get('limit', '50'), 'limit', maximum=100)
+    with connect(database()) as db:
+        # The cursor is read first and bounds the items, so a poller resuming from it never skips a post.
+        upto = talk.cursor(db)
+        return ok(dict(items=talk.inbox(db, g.user['id'], after, upto, limit), cursor=upto))
+
+
+@api.get('/talk')
+def topics():
+    limit = integer(request.args.get('limit', '30'), 'limit', maximum=100)
+    offset = integer(request.args.get('offset', '0'), 'offset', minimum=0)
+    task_id = integer(request.args['task_id'], 'task_id') if request.args.get('task_id') else None
+    mine = request.args.get('mine', '') not in ('', '0', 'false')
+    with connect(database()) as db:
+        return ok(talk.listing(db, g.user['id'], request.args.get('q', '')[:100], task_id, mine, limit, offset))
+
+
+@api.post('/talk')
+def open_topic():
+    data = payload()
+    task_id = integer(data['task_id'], 'task_id') if data.get('task_id') is not None else None
+    topic_id, _ = talk.start(database(), g.user['id'], text(data, 'title'), text(data, 'body'), task_id, people(data), 'cli')
+    return ok(thread(topic_id), 201)
+
+
+@api.get('/talk/<int:topic_id>')
+def topic_detail(topic_id):
+    limit = integer(request.args.get('limit', '50'), 'limit', maximum=100)
+    after = integer(request.args.get('after', '0'), 'after', minimum=0)
+    if request.args.get('unread', '') not in ('', '0', 'false'):
+        with connect(database()) as db:
+            item = talk.topic(db, topic_id, g.user['id'])
+        after = max(after, item['last_read']) if item else after
+    return ok(thread(topic_id, after, limit))
+
+
+@api.post('/talk/<int:topic_id>/posts')
+def answer(topic_id):
+    data = payload()
+    with connect(database()) as db:
+        if not talk.topic(db, topic_id, g.user['id']):
+            abort(404, description='话题不存在。')
+    post_id, _ = talk.reply(database(), topic_id, g.user['id'], text(data, 'body'), people(data), 'cli')
+    with connect(database()) as db:
+        post = talk.posts(db, topic_id, post_id - 1, 1)[0]
+    return ok(dict(topic_id=topic_id, post=post), 201)
 
 
 def install(app):

@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% from 'components/icon.html' import icon %}
+{% from 'components/ui.html' import ava %}
+{% block title %}寄合 · 結 YUI{% endblock %}
+{% block body_class %}page-talk{% endblock %}
+{% block content %}
+<div class="wrap talk">
+  <header class="mine-head talk-head">
+    <div><span class="label">寄合</span><div class="bigrow"><b class="big num">{{ talk_unread }}</b><span>个话题有你没看的新帖</span></div>
+      <p class="talk-note">技术问题、交接进度都在这里说；各自的 AI 也能用命令行收发，AI 发的会标出来。</p></div>
+    <svg class="talk-art" viewBox="0 0 168 96" aria-hidden="true"><path d="M24 74 84 18 146 62Z" fill="#DCE6F2"/><path d="M24 74 84 18 146 62" fill="none" stroke="#1B1D2A" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="74" r="11" fill="#E54465"/><circle cx="84" cy="18" r="11" fill="#2866B1"/><circle cx="146" cy="62" r="11" fill="#F2B700"/></svg>
+    <a class="btn" href="{{ url_for('talk.new') }}">{{ icon('plus') }}开个话题</a>
+  </header>
+
+  <form class="frow" method="get" action="{{ url_for('talk.board') }}" role="search">
+    <nav class="timeseg" aria-label="范围">
+      <a href="{{ url_for('talk.board', q=query or none) }}" {% if not mine %}aria-current="page"{% endif %}>全部<span class="num">{{ everyone }}</span></a>
+      <a href="{{ url_for('talk.board', scope='mine', q=query or none) }}" {% if mine %}aria-current="page"{% endif %}>和我有关<span class="num">{{ involved }}</span></a>
+    </nav>
+    {% if mine %}<input type="hidden" name="scope" value="mine">{% endif %}
+    <label class="search">{{ icon('search') }}<input type="search" name="q" value="{{ query }}" placeholder="搜标题或帖子内容" aria-label="搜索话题"></label>
+  </form>
+
+  {% if result['items'] %}
+  <div class="mlist panel">
+    {% for item in result['items'] %}{% set last = item['last'] %}
+    <a class="trow{{ ' fresh' if item.unread }}" href="{{ url_for('talk.thread', topic_id=item.id) }}{{ '#p' ~ last.id if item.unread }}">
+      {{ ava(last.user_name, last.user_id) }}
+      <div class="mrow-main"><b>{{ item.title }}</b>
+        <p>{% if item.task_id %}<em class="ev-tag">#{{ item.task_id }} {{ item.task_title }}</em>{% endif %}<span class="trow-last">{{ last.user_name }}{% if last.ai %}<em class="ai-tag">经 AI</em>{% endif %}：{{ last.preview }}</span></p></div>
+      <span class="trow-count">{% if item.unread %}<b class="num">{{ item.unread }}</b>条新{% else %}<span class="num">{{ item.posts }}</span> 条{% endif %}</span>
+      <time class="trow-time">{{ last.created_at|date }}</time>
+    </a>
+    {% endfor %}
+  </div>
+  {% if result.next_offset %}<a class="btn btn-line talk-more" href="{{ page_url(offset=result.next_offset) }}">再看 {{ result.total - result.next_offset }} 个</a>{% endif %}
+  {% else %}
+  <div class="empty panel">{% if query %}<b>没有找到相关的话题</b><span>换个词试试，或者开一个新话题。</span>
+    {% elif mine %}<b>还没有和你有关的话题</b><span>你开的、回过的、点了你名的，和挂在你任务上的话题会出现在这里。</span>
+    {% else %}<b>还没有话题</b><span>有技术问题，或者要把手上的活交给别人，就开一个。</span>{% endif %}</div>
+  {% endif %}
+</div>
+{% endblock %}
