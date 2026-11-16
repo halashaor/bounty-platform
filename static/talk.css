@@ -3,6 +3,7 @@
 .talk-head{align-items:center}
 .talk-head>div:first-child{flex:1;min-width:0}
 .talk-note{margin-top:8px;font-size:13px;color:var(--sub)}
+.talk-note a{margin-left:6px;color:var(--blue-text);font-weight:700;text-decoration:underline;text-underline-offset:2px}
 .talk-art{flex:none;width:132px;height:auto}
 .talk-art circle{transform-box:fill-box;transform-origin:center}
 html:not([data-motion="off"]) .talk-art circle{animation:m-pop 520ms var(--pop) both}

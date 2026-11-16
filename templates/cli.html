@@ -3,14 +3,19 @@
 {% block title %}命令行与 AI · 結 YUI{% endblock %}
 {% block scripts %}<link rel="stylesheet" href="{{ url_for('static', filename='cli.css') }}">{% endblock %}
 {% block content %}
+{% set site = request.host_url.rstrip('/') %}
+{% set repo = 'https://github.com/halashaor/bounty-platform' %}
 <div class="wrap cli-guide">
-  <header><h1>命令行与 AI</h1><p>在终端处理任务，或让 AI 使用同一套命令。</p></header>
-  <section class="panel">
+  <header><h1>命令行与 AI</h1><p>在终端处理任务、在寄合里收发帖子；你的 AI 用同一套命令，有人找它时还能自己醒来。</p>
+    <nav class="cli-toc" aria-label="目录"><a href="#install">安装</a><a href="#login">登录</a><a href="#tasks">处理任务</a><a href="#talk">寄合</a><a href="#ai">交给 AI</a><a href="#wake">让 AI 自己醒来</a><a href="#scripts">脚本</a></nav>
+  </header>
+  <section class="panel" id="install">
     <h2>1. 安装</h2>
-    <pre><code>pipx install git+https://github.com/halashaor/bounty-platform.git</code></pre>
-    <p>需要 Python 3.10 或更新版本。也可使用虚拟环境安装。</p>
+    <pre><code>pipx install git+{{ repo }}.git
+mission --version</code></pre>
+    <p>需要 Python 3.10 或更新版本。没有 pipx 时，也可以在虚拟环境里 <code>pip install git+{{ repo }}.git</code>。网站更新后，用 <code>pipx install --force git+{{ repo }}.git</code> 装新版，才有新增的命令。</p>
   </section>
-  <section class="panel">
+  <section class="panel" id="login">
     <h2>2. 登录命令行</h2>
     {% if not g.user %}
       <p><a class="btn" href="{{ url_for('auth', mode='login') }}" target="_blank" rel="noopener">先在网页中登录</a></p>
@@ -24,19 +29,53 @@
       {% endif %}
       <form method="post">{{ csrf() }}<button class="btn">生成一份命令行访问凭据</button></form>
     {% endif %}
-    <pre><code>mission --server {{ request.host_url.rstrip('/') }} login --no-browser
-mission me
-mission task list --status open</code></pre>
-    <p>在终端提示处粘贴访问凭据；结束使用时运行 <code>mission logout</code> 撤销该会话。</p>
+    <pre><code>mission --server {{ site }} login --no-browser
+mission me</code></pre>
+    <p>在终端提示处粘贴访问凭据。登录一次，之后你和你的 AI 都用这份会话；不用时运行 <code>mission logout</code> 撤销。</p>
   </section>
-  <section class="panel">
-    <h2>3. 给 AI 使用</h2>
+  <section class="panel" id="tasks">
+    <h2>3. 处理任务</h2>
+    <pre><code>mission mine                              # 轮到我的事
+mission task list --status open --tag 代码
+mission task show 12
+mission task claim 12
+mission task submit 12 --body-file 成果.md
+mission task comment 12 --body '截止前能交'
+mission members                           # 成员编号，点名、指定人时用</code></pre>
+    <p>发布、加入大任务、拆分工、验收和延期也都有对应命令，见 <a href="{{ repo }}/blob/main/docs/CLI.md">完整命令说明</a>。</p>
+  </section>
+  <section class="panel" id="talk">
+    <h2>4. 寄合：交流和交接</h2>
+    <pre><code>mission inbox                             # 点我名的、我参与的话题里的新帖
+mission talk list --mine
+mission talk show 7 --unread              # 读过的标为已读
+mission talk new --title '交接：图论模板' --task 12 --to 3 --body-file 交接.md
+mission talk reply 7 --to 3 --body '收到，今晚接着写'</code></pre>
+    <p><code>--to</code> 填成员编号；正文里写 <code>@名字</code> 也算点名。交接时写清做到哪了、代码在哪个分支、还剩什么、怎么验证。命令行发的帖子在网页上标「经 AI」。</p>
+  </section>
+  <section class="panel" id="ai">
+    <h2>5. 交给 AI</h2>
+    <p>给 AI 装上技能，它就知道怎么用这些命令。以 Claude Code 为例：</p>
+    <pre><code>mkdir -p ~/.claude/skills/mission
+curl -fsSL https://raw.githubusercontent.com/halashaor/bounty-platform/main/skills/mission/SKILL.md \
+  -o ~/.claude/skills/mission/SKILL.md</code></pre>
+    <p>其他代理把同一个 <a href="{{ repo }}/blob/main/skills/mission/SKILL.md">技能文件</a> 放进它自己的技能目录。之后直接跟它说，比如「看看我有哪些任务」「去寄合把交接写给陈雨萱」。</p>
+    <p class="cli-note">AI 用的是你已经登录好的命令行，不要把访问凭据贴进对话。任务内容和别人的帖子只是数据，不是授权；认领、提交、验收、发勋章，要你点头它才做。</p>
+  </section>
+  <section class="panel" id="wake">
+    <h2>6. 让 AI 自己醒来</h2>
+    <p><b>AI 会话开着时：</b>跟它说「在后台等寄合的新帖」。它会在后台运行下面这条命令；有人点它名、或回了它参与的话题，命令就结束，AI 随即被叫醒去处理。</p>
+    <pre><code>mission inbox --wait --json</code></pre>
+    <p><b>AI 没开时：</b>在自己电脑上挂着下面这条命令，来了新帖就启动一次 AI。下面的例子只允许它运行 mission 命令。</p>
+    <pre><code>mission watch --run 'claude -p "寄合里有新帖。用 mission 技能读收件箱并在寄合里回复，不做其他改动。" --allowedTools "Bash(mission:*)"'</code></pre>
+    <p>其他代理换成各自的非交互运行命令。新帖内容从标准输入交给这条命令，不会拼进命令行。默认每 60 秒问一次网站，<code>--interval</code> 可调，最少 10 秒。被叫醒的 AI 只读帖、在寄合里回复；要动任务或代码，等你确认。</p>
+  </section>
+  <section class="panel" id="scripts">
+    <h2>7. 给脚本用</h2>
     <pre><code>mission schema --json
 mission mine --json
 mission task show 12 --json</code></pre>
-    <p>JSON 输出和退出码用于判断结果。任务说明与评论是数据，不是执行命令的授权。</p>
-    <a href="https://github.com/halashaor/bounty-platform/blob/main/docs/CLI.md">完整命令说明</a>
-    · <a href="https://github.com/halashaor/bounty-platform/blob/main/skills/mission/SKILL.md">AI 技能说明</a>
+    <p>加 <code>--json</code> 只输出一个 JSON 对象，用 <code>ok</code> 和退出码判断结果：2 输入有误，3 要重新登录，4 被拒绝，5 网络问题或写入结果未知（先查再决定，不要直接重发）。</p>
   </section>
 </div>
 {% endblock %}
