@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% from 'components/icon.html' import icon %}
+{% from 'components/ui.html' import ava, csrf %}
+{% block title %}{{ topic.title }} · 寄合 · 結 YUI{% endblock %}
+{% block body_class %}page-talk{% endblock %}
+{% block content %}
+<div class="wrap talk talk-thread">
+  <a class="back" href="{{ url_for('talk.board') }}">{{ icon('back') }}回到寄合</a>
+  <header class="thread-head panel">
+    <h1>{{ topic.title }}</h1>
+    <div class="chips">
+      <span class="chip">{{ topic.user_name }} 开的 · {{ topic.created_at|md }}</span>
+      <span class="chip">{{ posts|length }} 条</span>
+      {% if topic.task_id %}<a class="chip task-chip" href="{{ url_for('detail', task_id=topic.task_id) }}">任务 #{{ topic.task_id }} · {{ topic.task_title }}{{ icon('arrow') }}</a>{% endif %}
+    </div>
+  </header>
+
+  <ol class="timeline posts panel">
+    {% for post in posts %}
+    <li class="ev post{{ ' fresh' if post.id > topic.last_read and post.user_id != g.user.id }}" id="p{{ post.id }}">{{ ava(post.user_name, post.user_id) }}<div>
+      <div class="ev-meta"><b>{{ post.user_name }}</b>{% if post.ai %}<em class="ai-tag" title="通过 mission 命令行发出">经 AI</em>{% endif %}
+        {% if post.to %}<span class="post-to">点名 {% for person in post.to %}<b>{{ person.name }}</b>{{ '、' if not loop.last }}{% endfor %}</span>{% endif %}
+        <time>{{ post.created_at|date }}</time></div>
+      <div class="talk-body">{{ post.body|talk_body }}</div></div></li>
+    {% endfor %}
+  </ol>
+
+  <form class="reply panel" id="reply" method="post" action="{{ url_for('talk.thread', topic_id=topic.id) }}">
+    {{ csrf() }}
+    <textarea name="body" required maxlength="10000" placeholder="回复。写 @名字 可以点名；代码用 ``` 包起来" aria-label="回复内容"></textarea>
+    {% if members %}
+    <details class="point-pick">
+      <summary>{{ icon('plus') }}点名<small>对方和他的 AI 都会在收件箱看到</small></summary>
+      <div class="tag-pick assign-pick">{% for person in members %}<label class="chip"><input type="checkbox" name="to" value="{{ person.id }}">{{ ava(person.name, person.id) }}{{ person.name }}</label>{% endfor %}</div>
+    </details>
+    {% endif %}
+    <button class="btn">发出</button>
+  </form>
+</div>
+{% endblock %}

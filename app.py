@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import unquote
 from flask import Flask, abort, flash, g, redirect, render_template, render_template_string, request, session, url_for, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
-from bounty import blocks, cleanup, discover, extend, games, progress, recap, tags, teams, titles, unlocks
+from bounty import blocks, cleanup, discover, extend, games, progress, recap, tags, talk, teams, titles, unlocks
 from bounty.db import connect, initialize
 from bounty.honors import COLD_DAYS, EFFORT, IMPORTANCE, URGENCY, MEDALS, cold_bonus, medal_key, task_xp
 from bounty.service import (CATEGORIES, STATUSES, KINDS, MAX_INTERESTS, MAX_TEAM, TEAM_TZ, InvalidAction, act, clap,
@@ -881,6 +881,7 @@ def create_app(config=None):
             ext_pending = extend.pending(db, task_id)
             ext_done = extend.approved(db, task_id)
             ext_checker = extend.checker(db, task, g.user['id'])
+            topics = talk.for_task(db, task_id)
             why = []
             if task['owner_id'] != g.user['id'] and (task['status'] == 'open' or team and task['status'] == 'active'):
                 # 详情页按分量从高到低说理由（推荐卡上为了三张不重样，第一句会换）
@@ -895,7 +896,7 @@ def create_app(config=None):
         return render_template('detail.html', task=task, events=events, award=award, feedback=feedback, tags=tags, big=big,
                                claps=claps, new_kind=medal_key(task) not in earned, why=why[:3], first_timer=first_timer and not team,
                                debut=debut and not team, team=team, members=members, member=member, seat_open=seat_open,
-                               pieces=pieces, piece_tags=piece_tags, team_tags=team_tags, credited=credited,
+                               pieces=pieces, piece_tags=piece_tags, team_tags=team_tags, credited=credited, topics=topics,
                                ext_pending=ext_pending, ext_done=ext_done, ext_checker=ext_checker,
                                ext_ask=task['status'] == 'active' and (member if team else task['assignee_id'] == g.user['id']) and not ext_checker,
                                ext_push=ext_checker and task['status'] in ('open', 'active'),
@@ -979,6 +980,7 @@ def create_app(config=None):
         install(app, app.config.get('TEAM_ACCOUNTS_DATABASE') or os.environ['TEAM_ACCOUNTS_DATABASE'])
     from bounty.api import install as install_api
     install_api(app)
+    talk.install(app)
     return app
 
 

@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% from 'components/icon.html' import icon %}
+{% from 'components/ui.html' import ava, csrf %}
+{% block title %}开个话题 · 寄合 · 結 YUI{% endblock %}
+{% block body_class %}page-talk{% endblock %}
+{% block content %}
+<div class="wrap talk talk-new">
+  <a class="back" href="{{ url_for('talk.board') }}">{{ icon('back') }}回到寄合</a>
+  <form class="editor panel" method="post" action="{{ url_for('talk.board') }}">
+    {{ csrf() }}
+    <h1>开个话题</h1>
+    <p class="intro">问技术问题，或者把手上的活交给别人。点到谁，谁和他的 AI 都会在收件箱看到。</p>
+    <label class="field"><span>标题<small>一句话说清是什么事</small></span>
+      <input name="title" required maxlength="120" value="{{ form.get('title', '') }}" placeholder="例如：图论模板的接口怎么定"></label>
+    <label class="field"><span>关联任务<small>可选；挂上之后，任务页和做这个任务的人都能看到</small></span>
+      <select name="task">
+        <option value="">不关联任务</option>
+        {% for task in tasks %}<option value="{{ task.id }}" {% if task.id == task_id %}selected{% endif %}>#{{ task.id }} {{ task.title }}</option>{% endfor %}
+      </select></label>
+    <label class="field"><span>内容<small>写 @名字 也能点名；代码用 ``` 包起来</small></span>
+      <textarea name="body" required maxlength="10000" rows="8" placeholder="交接的话，写清楚做到哪了、代码在哪个分支、剩下什么、怎么验证。">{{ form.get('body', '') }}</textarea></label>
+    {% if members %}
+    <div class="field"><span>点名<small>可以多选</small></span>
+      <div class="tag-pick assign-pick">{% for person in members %}<label class="chip"><input type="checkbox" name="to" value="{{ person.id }}" {% if person.id|string in picked %}checked{% endif %}>{{ ava(person.name, person.id) }}{{ person.name }}</label>{% endfor %}</div>
+    </div>
+    {% endif %}
+    <div><button class="btn btn-big">{{ icon('check') }}发出</button></div>
+  </form>
+</div>
+{% endblock %}

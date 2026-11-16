@@ -24,6 +24,7 @@
   </script>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='board.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='talk.css') }}">
   <script type="application/json" id="block-data">{{ block_data|tojson }}</script>
   <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
   <script src="{{ url_for('static', filename='iso.js') }}" defer></script>
@@ -41,12 +42,14 @@
         <a href="{{ url_for('index') }}" {% if here == 'index' %}aria-current="page"{% endif %}>发现</a>
         <a href="{{ url_for('big_list') }}" {% if here == 'big_list' %}aria-current="page"{% endif %}>大任务</a>
         <a href="{{ url_for('mine') }}" {% if here == 'mine' %}aria-current="page"{% endif %}>我的任务{% if my_turn %}<b aria-label="{{ my_turn }} 件轮到你">{{ my_turn }}</b>{% endif %}</a>
+        <a href="{{ url_for('talk.board') }}" {% if here and here.startswith('talk.') %}aria-current="page"{% endif %}>寄合{% if talk_unread %}<b aria-label="{{ talk_unread }} 个话题有新帖">{{ talk_unread }}</b>{% endif %}</a>
         <a href="{{ url_for('honors') }}" {% if here in ('honors', 'recap_page') %}aria-current="page"{% endif %}>成就</a>
         <a href="{{ url_for('play') }}" {% if here and here.startswith('play') %}aria-current="page"{% endif %}>縁側{% if play_new %}<i class="new-dot" aria-label="有 {{ play_new }} 样新解锁">新</i>{% endif %}</a>
       </nav>
       <div class="top-right">
         <a class="btn btn-new" href="{{ url_for('new_task') }}">{{ icon('plus') }}发布任务</a>
         <a class="icon-btn" href="{{ url_for('team_tags') }}" title="标签管理" aria-label="标签管理" {% if here == 'team_tags' %}aria-pressed="true"{% endif %}>{{ icon('tag') }}</a>
+        <a class="icon-btn talk-btn{{ ' has-mail' if talk_unread }}" href="{{ url_for('talk.board') }}" title="寄合" aria-label="寄合{{ '：' ~ talk_unread ~ ' 个话题有新帖' if talk_unread else '' }}" {% if here and here.startswith('talk.') %}aria-pressed="true"{% endif %}>{{ icon('talk') }}{% if talk_unread %}<b>{{ talk_unread }}</b>{% endif %}</a>
         <a class="icon-btn mailbox{{ ' has-mail' if mailbox }}" href="{{ url_for('honors') }}" title="信箱" aria-label="信箱{{ '：' ~ mailbox ~ ' 枚新勋章待领取' if mailbox else '' }}">{{ icon('mail') }}{% if mailbox %}<b>{{ mailbox }}</b>{% endif %}</a>
         <button type="button" class="icon-btn" data-sound-toggle aria-pressed="false" title="音效：关" aria-label="音效">{{ icon('mute') }}</button>
         <button type="button" class="icon-btn" data-motion-toggle aria-pressed="false" title="动效：开" aria-label="动效">{{ icon('motion') }}</button>

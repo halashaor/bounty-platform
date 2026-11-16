@@ -139,6 +139,11 @@
           <button class="btn btn-line">发表</button>
         </form>
       </section>
+
+      <section class="block panel talk-related" id="topics"><h2 class="sec">寄合<span>{{ topics|length }}</span><small>细聊技术、交接进度，可以单独开个话题，各自的 AI 也看得到</small></h2>
+        {% if topics %}<ul class="talk-links">{% for item in topics %}<li><a href="{{ url_for('talk.thread', topic_id=item.id) }}">{{ icon('talk') }}<b>{{ item.title }}</b></a><small><span class="num">{{ item.posts }}</span> 条 · {{ item.last_at|date }}</small></li>{% endfor %}</ul>{% endif %}
+        <a class="btn btn-line btn-sm" href="{{ url_for('talk.new', task=task.id) }}">{{ icon('plus') }}就这个任务开个话题</a>
+      </section>
     </div>
 
     <aside class="dside">

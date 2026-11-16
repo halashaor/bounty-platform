@@ -141,6 +141,35 @@ CREATE TABLE IF NOT EXISTS extensions (
  decided_at TEXT
 );
 CREATE INDEX IF NOT EXISTS extensions_by_task ON extensions(task_id);
+CREATE TABLE IF NOT EXISTS topics (
+ id INTEGER PRIMARY KEY,
+ title TEXT NOT NULL,
+ user_id INTEGER NOT NULL REFERENCES users(id),
+ task_id INTEGER REFERENCES tasks(id),
+ created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS topics_by_task ON topics(task_id);
+CREATE TABLE IF NOT EXISTS posts (
+ id INTEGER PRIMARY KEY,
+ topic_id INTEGER NOT NULL REFERENCES topics(id),
+ user_id INTEGER NOT NULL REFERENCES users(id),
+ body TEXT NOT NULL,
+ via TEXT NOT NULL DEFAULT 'web' CHECK(via IN ('web','cli')),
+ created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS posts_by_topic ON posts(topic_id);
+CREATE TABLE IF NOT EXISTS post_mentions (
+ post_id INTEGER NOT NULL REFERENCES posts(id),
+ user_id INTEGER NOT NULL REFERENCES users(id),
+ PRIMARY KEY(post_id,user_id)
+);
+CREATE INDEX IF NOT EXISTS post_mentions_by_user ON post_mentions(user_id);
+CREATE TABLE IF NOT EXISTS topic_reads (
+ user_id INTEGER NOT NULL REFERENCES users(id),
+ topic_id INTEGER NOT NULL REFERENCES topics(id),
+ post_id INTEGER NOT NULL,
+ PRIMARY KEY(user_id,topic_id)
+);
 '''
 
 
