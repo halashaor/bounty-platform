@@ -55,7 +55,7 @@
   <h3>{% if task.kind == 'team' %}{{ big_tag('大任务 · ' ~ ('想要 ' ~ task.team_size ~ ' 人' if task.team_size else '人数不限')) }}{% elif task.big_title %}{{ big_tag(task.big_title) }}{% endif %}{{ task.title }}</h3>
   <p class="goal">{{ task.description or '大任务「' ~ task.big_title ~ '」拆出来的一份分工' }}</p>
   {% if tags %}<div class="tags">{% for tag in tags[:3] %}<span class="tag">{{ tag }}</span>{% endfor %}</div>{% endif %}
-  <div class="card-foot"><span class="eff">{{ effort_labels[task.importance] }}</span><span class="xp">{{ '每人 ' if task.kind == 'team' }}+{{ offer_xp(task) }}</span>{% if task.kind == 'team' and task.status in ('open', 'active') %}<span class="team-count">{{ task.people or 0 }}{{ ' / ' ~ task.team_size if task.team_size }} 人</span>{% endif %}<span class="who">{{ ava(task.owner_name, task.owner_id) }}{{ task.owner_name }}</span></div>
+  <div class="card-foot"><span class="eff">{{ effort_labels[task.importance] }}</span><span class="xp">{{ '每人 ' if task.kind == 'team' or (task.people or 0) > 1 }}+{{ offer_xp(task) }}</span>{% if (task.kind == 'team' or task.people) and task.status in ('open', 'active') %}<span class="team-count">{{ task.people or 0 }}{{ ' / ' ~ task.team_size if task.team_size }} 人</span>{% endif %}<span class="who">{{ ava(task.owner_name, task.owner_id) }}{{ task.owner_name }}</span></div>
 </article>
 {%- endmacro %}
 

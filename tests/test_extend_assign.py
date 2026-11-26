@@ -69,6 +69,11 @@ class ExtendAssignTest(unittest.TestCase):
         with connect(self.path) as db:
             return db.execute('SELECT * FROM extensions WHERE task_id=? ORDER BY id', (task_id or self.task_id,)).fetchall()
 
+    def members(self, task_id=None):
+        with connect(self.path) as db:
+            return [r[0] for r in db.execute('SELECT user_id FROM task_members WHERE task_id=? ORDER BY joined_at,user_id',
+                                             (task_id or self.task_id,))]
+
     def events(self, task_id=None):
         with connect(self.path) as db:
             return db.execute('SELECT * FROM events WHERE task_id=? ORDER BY id', (task_id or self.task_id,)).fetchall()
@@ -77,20 +82,23 @@ class ExtendAssignTest(unittest.TestCase):
         act(self.path, self.task_id, 2, 'claim')
         extend.ask(self.path, self.task_id, 2, self.future(4), '数据还没到', timezone.utc)
 
-    def test_solo_assignment_follows_the_existing_workflow(self):
+    def test_solo_assignment_starts_the_task_and_others_can_still_join(self):
         task = create_task(self.path, 1, {**self.data, 'assignee': '2'})
         row = self.row(task)
-        self.assertEqual((row['status'], row['assignee_id'], row['cold']), ('active', 2, 0))
+        self.assertEqual((row['status'], row['assignee_id'], row['cold']), ('active', None, 0))
+        self.assertEqual(self.members(task), [2])
         self.assertEqual([(e['kind'], e['user_id'], e['body']) for e in self.events(task)], [('assign', 1, '指定 worker 来做。')])
-        with self.assertRaises(InvalidAction):
-            act(self.path, task, 3, 'claim')
         with connect(self.path) as db:
-            self.assertNotIn(task, [row['id'] for row in discover.open_tasks(db, 3)])
-        self.assertNotIn(f'data-task="{task}"', self.clients[2].get('/').text)
+            self.assertIn(task, [row['id'] for row in discover.open_tasks(db, 3)])   # 小任务不限人数，别人还能加入
+        self.assertIn(f'data-task="{task}"', self.clients[2].get('/').text)
+        act(self.path, task, 3, 'claim')
+        with self.assertRaises(InvalidAction):           # 同一个人不能加入两次
+            act(self.path, task, 3, 'join')
+        self.assertEqual(self.members(task), [2, 3])
         act(self.path, task, 2, 'submit', '文档好了')
         act(self.path, task, 1, 'accept')
         with connect(self.path) as db:
-            self.assertEqual(db.execute('SELECT user_id FROM honors WHERE task_id=?', (task,)).fetchone()[0], 2)
+            self.assertEqual([r[0] for r in db.execute('SELECT user_id FROM honors WHERE task_id=? ORDER BY user_id', (task,))], [2, 3])
             self.assertEqual(progress.person_progress(db, 2)['xp'], 30)
 
     def test_assignment_rejects_self_unknown_and_invalid_ids_atomically(self):
@@ -115,13 +123,15 @@ class ExtendAssignTest(unittest.TestCase):
         act(self.path, spare, 3, 'join')
         self.assertEqual(self.row(spare)['status'], 'active')
 
-    def test_assignment_reads_only_the_fields_for_its_kind(self):
-        solo = create_task(self.path, 1, {**self.data, 'members': ['1', '999']})
-        team = create_task(self.path, 1, {**self.data, 'kind': 'team', 'assignee': '1'})
-        self.assertEqual((self.row(solo)['status'], self.row(solo)['assignee_id']), ('open', None))
-        self.assertEqual(self.row(team)['status'], 'open')
-        self.assertEqual(self.events(solo), [])
-        self.assertEqual(self.events(team), [])
+    def test_assignment_reads_members_and_the_old_single_assignee(self):
+        solo = create_task(self.path, 1, {**self.data, 'members': ['2'], 'assignee': '3'})
+        self.assertEqual((self.row(solo)['status'], self.members(solo)), ('active', [2, 3]))
+        self.assertEqual(self.events(solo)[-1]['body'], '指定 worker、other 一起做。')
+        team = create_task(self.path, 1, {**self.data, 'kind': 'team', 'assignee': '1'})   # 大任务只看 members
+        self.assertEqual((self.row(team)['status'], self.events(team)), ('open', []))
+        for picked in (['1'], ['999']):
+            with self.subTest(picked=picked), self.assertRaises(InvalidAction):
+                create_task(self.path, 1, {**self.data, 'members': picked})
 
     def test_assignment_pages_flash_and_keep_choices_on_error(self):
         owner = self.clients[0]
@@ -134,15 +144,16 @@ class ExtendAssignTest(unittest.TestCase):
         self.assertIn('worker', page)
         self.assertIn('other', page)
         # 页面导航本来就显示自己，只检查指定人选里没有自己
-        form = page.split('指定谁来做')[1].split('<div class="two team-only">')[0]
+        form = page.split('指定谁来做')[1].split('你自己')[0]
         self.assertNotIn('owner', form)
-        failed = self.post(owner, '/tasks/new', {**self.data, 'title': '', 'assignee': '2', 'members': ['2', '3']})
+        failed = self.post(owner, '/tasks/new', {**self.data, 'title': '', 'members': ['2', '3']})
         selected = [(i.get('name'), i.get('value')) for i in Forms(failed.text).inputs if 'checked' in i]
-        self.assertIn(('assignee', '2'), selected)
         self.assertIn(('members', '2'), selected)
         self.assertIn(('members', '3'), selected)
-        assigned = self.post(owner, '/tasks/new', {**self.data, 'assignee': '2'})
-        self.assertIn('任务已发布，交给 worker 了。', assigned.text)
+        assigned = self.post(owner, '/tasks/new', {**self.data, 'members': ['2']})
+        self.assertIn('任务已发布，交给 worker 了；别人也还能加入。', assigned.text)
+        both = self.post(owner, '/tasks/new', {**self.data, 'members': ['2', '3']})
+        self.assertIn('任务已发布，指定的人已经加进来了。', both.text)
         team = self.post(owner, '/tasks/new', {**self.data, 'kind': 'team', 'members': ['2', '3'], 'assignee': '1'})
         self.assertIn('大任务已发布，指定的人已经加进来了。', team.text)
         with connect(self.path) as db:
@@ -206,7 +217,7 @@ class ExtendAssignTest(unittest.TestCase):
         self.assertEqual((self.records()[0]['status'], self.records()[0]['decided_by']), ('approved', 1))
         self.assertEqual(self.events()[-1]['body'], '把截止时间往后延了。')
         act(self.path, self.task_id, 3, 'claim')
-        self.assertEqual(self.row()['assignee_id'], 3)
+        self.assertEqual(self.members(), [3])
 
     def test_team_lead_can_reply_to_a_piece_and_sees_it_in_mine(self):
         team = create_task(self.path, 1, {**self.data, 'kind': 'team', 'members': ['2']})
@@ -426,7 +437,7 @@ class ExtendAssignTest(unittest.TestCase):
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
             self.assertEqual(sum(executor.map(decide, range(2))), 1)
         self.assertEqual(len(self.records()), 1)
-        self.assertEqual([e['kind'] for e in self.events()], ['claim', 'extend_ask', 'extend'])
+        self.assertEqual([e['kind'] for e in self.events()], ['join', 'extend_ask', 'extend'])
 
     def test_extensions_are_added_to_existing_databases_idempotently(self):
         before = dict(self.row())

@@ -9,20 +9,17 @@
 {%- set me = g.user.id -%}
 {%- set who = '你' if task.last_name == g.user.name else task.last_name -%}
 {%- set team = task.kind == 'team' -%}
-{%- if task.status == 'active' and task.asks_extend and (task.owner_id == me if team else task.assignee_id != me and me in (task.owner_id, task.big_owner)) -%}{% set ball = '申请延期，等你回复' %}
-{%- elif task.status == 'active' and task.asks_extend and (task.member if team else task.assignee_id == me) -%}{% set ball = '申请了延期，等 ' ~ task.owner_name ~ ' 回复' %}
-{%- elif team and task.status == 'active' and task.member -%}{% set ball = '被退回，大家改' if task.state_kind == 'return' else '你们 ' ~ task.people ~ ' 人在做' %}
-{%- elif team and task.status == 'review' and task.owner_id == me -%}{% set ball = '等你验收' %}
-{%- elif team and task.status == 'review' -%}{% set ball = '交了，等 ' ~ task.owner_name ~ ' 验收' %}
-{%- elif team and task.status == 'active' -%}{% set ball = task.people ~ ' 人在做' %}
-{%- elif team and task.status == 'open' -%}{% set ball = '等人加入' %}
-{%- elif team -%}{% set ball = '一起完成 · 得到「' ~ medals[medal_key(task)].name ~ '」' if task.member else '大家一起完成了' %}
-{%- elif task.status == 'active' and task.assignee_id == me -%}{% set ball = '被退回，等你改' if task.state_kind == 'return' else '你在做' %}
-{%- elif task.status == 'review' and task.assignee_id != me and me in (task.owner_id, task.big_owner) -%}{% set ball = '等你验收' %}
-{%- elif task.status == 'review' -%}{% set ball = '等 ' ~ task.owner_name ~ ' 验收' %}
-{%- elif task.status == 'active' -%}{% set ball = task.assignee_name ~ ' 在做' %}
-{%- elif task.status == 'open' -%}{% set ball = '等人认领' %}
-{%- else -%}{% set ball = ('你完成 · 得到「' ~ medals[medal_key(task)].name ~ '」') if task.assignee_id == me else (task.assignee_name ~ ' 完成') %}{%- endif -%}
+{%- set many = task.people > 1 -%}
+{%- set checker = me in (task.owner_id, task.big_owner) -%}
+{%- if task.status == 'active' and task.asks_extend and checker and not (task.parent_id and task.member) -%}{% set ball = '申请延期，等你回复' %}
+{%- elif task.status == 'active' and task.asks_extend and task.member -%}{% set ball = '申请了延期，等 ' ~ task.owner_name ~ ' 回复' %}
+{%- elif task.status == 'active' and task.member -%}{% set ball = ('被退回，大家改' if many else '被退回，等你改') if task.state_kind == 'return' else ('你们 ' ~ task.people ~ ' 人在做' if many else '你在做') %}
+{%- elif task.status == 'review' and checker -%}{% set ball = '等你验收' %}
+{%- elif task.status == 'review' -%}{% set ball = ('交了，等 ' if task.member else '等 ') ~ task.owner_name ~ ' 验收' %}
+{%- elif task.status == 'active' -%}{% set ball = task.people ~ ' 人在做' %}
+{%- elif task.status == 'open' -%}{% set ball = '等人加入' if team else '等人接' %}
+{%- elif task.member -%}{% set ball = ('一起完成 · 得到「' if many else '你完成 · 得到「') ~ medals[medal_key(task)].name ~ '」' %}
+{%- else -%}{% set ball = '大家一起完成了' if many else '完成了' %}{%- endif -%}
 <a class="mrow" href="{{ url_for('detail', task_id=task.id) }}">{{ medal(medal_key(task)) }}
   <div class="mrow-main">{% if team %}{{ big_tag('大任务') }}{% elif task.big_title %}{{ big_tag(task.big_title) }}{% endif %}<b>{{ task.title }}</b>
     <p>{% if task.status == 'active' and task.state_kind == 'return' %}<em class="ev-tag return">退回修改</em>{{ task.return_reason }}{% elif task.last_kind %}<em class="ev-tag {{ task.last_kind }}">{{ kinds.get(task.last_kind, '动态') }}</em>{{ who }}：{{ task.last_body }}{% else %}{{ task.created_at|md }} 发布{% endif %}</p></div>

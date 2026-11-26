@@ -37,7 +37,8 @@ def label(term):
 def terms(db, user_id):
     """Every term from this person's first activity until now, newest first."""
     first = db.execute('''SELECT MIN(at) FROM (SELECT awarded_at at FROM honors WHERE user_id=?
-        UNION ALL SELECT created_at FROM tasks WHERE owner_id=? OR assignee_id=?)''', (user_id, user_id, user_id)).fetchone()[0]
+        UNION ALL SELECT created_at FROM tasks WHERE owner_id=?
+        UNION ALL SELECT joined_at FROM task_members WHERE user_id=?)''', (user_id, user_id, user_id)).fetchone()[0]
     current = term_of(datetime.now(timezone.utc))
     if not first:
         return [current]

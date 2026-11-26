@@ -56,8 +56,8 @@ def profile(db, user_id):
     history = db.execute('''SELECT t.id,t.title,t.description,t.project,h.awarded_at at,1.0 base FROM honors h
         JOIN tasks t ON t.id=h.task_id WHERE h.user_id=?
         UNION ALL SELECT t.id,t.title,t.description,t.project,t.created_at,0.5 FROM tasks t
-        WHERE (t.assignee_id=? OR t.id IN (SELECT task_id FROM task_members WHERE user_id=?)) AND t.status IN ('active','review')''',
-                         (user_id, user_id, user_id)).fetchall()
+        WHERE t.id IN (SELECT task_id FROM task_members WHERE user_id=?) AND t.status IN ('active','review')''',
+                         (user_id, user_id)).fetchall()
     tags_of = tags_by_task(db, [row['id'] for row in history])
     tag_weight, project_weight, tag_count, done_texts = Counter(), Counter(), Counter(), []
     for row in history:
@@ -145,6 +145,8 @@ def recommend(db, user_id, limit=3, batch=0, lane='all', exclude=()):
         elif task['parent_id'] and task['parent_id'] not in me['bigs']:
             score += 0.6
             reasons.append((1.1, 'big', f'大任务「{task["big_title"]}」拆出来的一份'))
+        if task['kind'] != 'team' and task['people']:   # 小任务已经有人在做：还能一起
+            reasons.append((0.9, 'team', team_text(task)))
         if task['project'] and not me['projects'][task['project']] \
                 and current - _parse(project_start[task['project']]) < timedelta(days=7):
             score += 0.8
@@ -205,7 +207,9 @@ def recommend(db, user_id, limit=3, batch=0, lane='all', exclude=()):
 
 
 def team_text(task):
-    """How a big task's crew stands, for its recommendation sticker."""
+    """How a task's crew stands, for its recommendation sticker."""
+    if task['kind'] != 'team':
+        return f'{task["people"]} 人在做 · 可以一起'
     if task['team_size']:
         return f'大任务 · 还缺 {task["team_size"] - task["people"]} 人'
     return f'大任务 · 已经 {task["people"]} 人在做' if task['people'] else '大任务 · 等第一个人加入'
@@ -289,7 +293,7 @@ def person_stats(db, user_id):
 
 def my_tasks(db, user_id):
     """Group a person's tasks by whose move it is, newest activity first."""
-    rows = db.execute('''SELECT t.*,u.name owner_name,a.name assignee_name,b.title big_title,b.owner_id big_owner,
+    rows = db.execute('''SELECT t.*,u.name owner_name,b.title big_title,b.owner_id big_owner,
             EXISTS(SELECT 1 FROM extensions x WHERE x.task_id=t.id AND x.status='pending') asks_extend,
             EXISTS(SELECT 1 FROM task_members m WHERE m.task_id=t.id AND m.user_id=:me) member,
             (SELECT COUNT(*) FROM task_members m WHERE m.task_id=t.id) people,
@@ -299,19 +303,17 @@ def my_tasks(db, user_id):
             (SELECT body FROM events e WHERE e.task_id=t.id ORDER BY e.id DESC LIMIT 1) last_body,
             (SELECT x.name FROM events e JOIN users x ON x.id=e.user_id WHERE e.task_id=t.id ORDER BY e.id DESC LIMIT 1) last_name,
             (SELECT created_at FROM events e WHERE e.task_id=t.id ORDER BY e.id DESC LIMIT 1) last_at
-        FROM tasks t JOIN users u ON u.id=t.owner_id LEFT JOIN users a ON a.id=t.assignee_id LEFT JOIN tasks b ON b.id=t.parent_id
-        WHERE t.owner_id=:me OR t.assignee_id=:me OR member OR (t.status='review' AND b.owner_id=:me AND b.status<>'done')
-            OR (t.kind='solo' AND t.status='active' AND asks_extend AND t.assignee_id<>:me AND b.owner_id=:me)
+        FROM tasks t JOIN users u ON u.id=t.owner_id LEFT JOIN tasks b ON b.id=t.parent_id
+        WHERE t.owner_id=:me OR member OR (t.status='review' AND b.owner_id=:me AND b.status<>'done')
+            OR (t.status='active' AND asks_extend AND b.owner_id=:me)
         ORDER BY COALESCE(last_at,t.created_at) DESC,t.id DESC''', dict(me=user_id)).fetchall()
     groups = {'yours': [], 'waiting': [], 'unclaimed': [], 'done': []}
     for task in rows:
-        team = task['kind'] == 'team'
-        mine_to_do = task['status'] == 'active' and (task['member'] if team else task['assignee_id'] == user_id)
-        # 大任务由发布者验收；从大任务里拆出来的分工，大任务的发布者也能验收
-        mine_to_check = task['status'] == 'review' and (task['owner_id'] == user_id if team else
-                                                        task['assignee_id'] != user_id and user_id in (task['owner_id'], task['big_owner']))
-        mine_to_reply = task['status'] == 'active' and task['asks_extend'] and (task['owner_id'] == user_id if team else
-                            task['assignee_id'] != user_id and user_id in (task['owner_id'], task['big_owner']))
+        mine_to_do = task['status'] == 'active' and task['member']
+        # 发布者验收、回复延期；从大任务里拆出来的分工，大任务的发布者也行
+        checker = user_id in (task['owner_id'], task['big_owner'])
+        mine_to_check = task['status'] == 'review' and checker
+        mine_to_reply = task['status'] == 'active' and task['asks_extend'] and checker and not (task['parent_id'] and task['member'])
         if mine_to_do or mine_to_check or mine_to_reply:
             groups['yours'].append(task)
         elif task['status'] in ('active', 'review'):

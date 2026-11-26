@@ -35,8 +35,8 @@
     <span class="kicker">{{ task.project or (pick.tags[0] if pick.tags else '') }}<span>·</span>{{ effort_labels[task.importance] }}<span>·</span><span class="{{ 'soon' if left[1] }}">{{ left[0] }}</span></span>
     <h3>{% if task.big_title %}{{ big_tag(task.big_title) }}{% endif %}{{ task.title }}</h3>
     <p class="goal">{{ task.description or '大任务「' ~ task.big_title ~ '」拆出来的一份分工' }}</p>
-    <div class="pick-foot">{{ ava(task.owner_name, task.owner_id) }}<span>{{ task.owner_name }}</span><span class="xp">{{ '每人 ' if task.kind == 'team' }}+{{ offer_xp(task) }} 经验</span>
-      <form method="post" action="{{ url_for('task_action', task_id=task.id, action='join' if task.kind == 'team' else 'claim') }}" data-quick-claim>{{ csrf() }}<button class="btn btn-sm">{{ '加入' if task.kind == 'team' else '认领' }}</button></form></div>
+    <div class="pick-foot">{{ ava(task.owner_name, task.owner_id) }}<span>{{ task.owner_name }}</span><span class="xp">{{ '每人 ' if task.kind == 'team' or task.people }}+{{ offer_xp(task) }} 经验</span>
+      <form method="post" action="{{ url_for('task_action', task_id=task.id, action='join') }}" data-quick-claim>{{ csrf() }}<button class="btn btn-sm">{{ '加入' if task.kind == 'team' or task.people else '认领' }}</button></form></div>
   </div>
 </article>
 {%- endmacro %}

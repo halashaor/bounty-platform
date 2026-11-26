@@ -58,7 +58,7 @@ class APITest(Fixture):
     def test_assignment_extension_and_review_use_existing_roles(self):
         task = self.call('/tasks', data={**self.data, 'assignee': 2, 'owner_id': 3, 'future_option': True}, status=201)
         tid = task['id']; path = f'/tasks/{tid}'
-        self.assertEqual((task['owner_id'], task['assignee_id'], task['status']), (1, 2, 'active'))
+        self.assertEqual((task['owner_id'], [m['id'] for m in task['members']], task['status']), (1, [2], 'active'))
         self.call(path + '/actions', uid=3, data={'action': 'submit', 'body': '越权'}, status=400)
         later = (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()
         self.call(path + '/extensions/ask', uid=2, data={'deadline': later, 'body': '补充样例'})

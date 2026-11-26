@@ -15,16 +15,14 @@ from bounty.service import (CATEGORIES, STATUSES, KINDS, MAX_INTERESTS, MAX_TEAM
                             create_task, dismiss, is_cold, now, required, set_interests, waited_days, zone)
 
 PAGE_SIZE = 12
-# 轮到这个人的事（表别名 t，参数 :me）：在做的小任务、一起在做的大任务、等他验收的任务
-# （自己发布的，以及自己发布的大任务里拆出去、别人交上来的分工）
-MY_TURN = '''((t.kind='solo' AND t.assignee_id=:me AND t.status='active')
-    OR (t.kind='team' AND t.status='active' AND t.id IN (SELECT task_id FROM task_members WHERE user_id=:me))
-    OR (t.status='review' AND t.kind='team' AND t.owner_id=:me)
-    OR (t.status='review' AND t.kind='solo' AND t.assignee_id<>:me AND (t.owner_id=:me
-        OR t.parent_id IN (SELECT id FROM tasks WHERE owner_id=:me AND kind='team' AND status<>'done')))
+# 轮到这个人的事（表别名 t，参数 :me）：自己加入了在做的任务、等他验收或回复延期的任务
+# （自己发布的，以及自己发布的大任务里拆出去、交上来的分工）
+CHECKER = "(t.owner_id=:me OR t.parent_id IN (SELECT id FROM tasks WHERE owner_id=:me AND kind='team'{}))"
+MY_TURN = f'''((t.status='active' AND t.id IN (SELECT task_id FROM task_members WHERE user_id=:me))
+    OR (t.status='review' AND {CHECKER.format(" AND status<>'done'")})
     OR (t.status='active' AND EXISTS (SELECT 1 FROM extensions x WHERE x.task_id=t.id AND x.status='pending')
-        AND ((t.owner_id=:me AND (t.kind='team' OR t.assignee_id<>:me)) OR (t.kind='solo' AND t.assignee_id<>:me
-            AND t.parent_id IN (SELECT id FROM tasks WHERE owner_id=:me AND kind='team')))))'''
+        AND {CHECKER.format('')}
+        AND (t.parent_id IS NULL OR t.id NOT IN (SELECT task_id FROM task_members WHERE user_id=:me))))'''
 
 
 def due_label(deadline):
@@ -251,8 +249,10 @@ def create_app(config=None):
                              for value in (request.args.get('batch', '0'), request.args.get('wb', '0')))
         clauses, params = [], []
         if scope in ('published', 'claimed'):
-            clauses.append('t.owner_id=?' if scope == 'published' else 't.assignee_id=?')
-            params.append(g.user['id'])
+            if scope == 'published':
+                clauses.append('t.owner_id=?'); params.append(g.user['id'])
+            else:   # 我接的：自己加入了在做的
+                clauses.append('t.id IN (SELECT task_id FROM task_members WHERE user_id=?)'); params.append(g.user['id'])
         if tag:
             clauses.append('t.id IN (SELECT task_id FROM task_tags WHERE tag=?)'); params.append(tag)
         if project:
@@ -375,14 +375,17 @@ def create_app(config=None):
             payload = request.form.to_dict()
             payload['tags'] = ' '.join(request.form.getlist('tags') + [request.form.get('new_tags', '')])
             payload['members'] = request.form.getlist('members')
+            payload.pop('assignee', None)   # 表单只有多选的 members
             try:
                 task_id = create_task(app.config['DATABASE'], g.user['id'], payload, g.tz)
                 if payload.get('kind') == 'team':
                     message = '大任务已发布，指定的人已经加进来了。' if payload['members'] else '大任务已发布，等大家来加入。'
-                elif payload.get('assignee'):
+                elif len(payload['members']) == 1:
                     with database() as db:
-                        name = db.execute('SELECT name FROM users WHERE id=?', (payload['assignee'],)).fetchone()[0]
-                    message = f'任务已发布，交给 {name} 了。'
+                        name = db.execute('SELECT name FROM users WHERE id=?', (payload['members'][0],)).fetchone()[0]
+                    message = f'任务已发布，交给 {name} 了；别人也还能加入。'
+                elif payload['members']:
+                    message = '任务已发布，指定的人已经加进来了。'
                 else:
                     message = '任务已发布。'
                 flash(message, 'success')
@@ -395,8 +398,7 @@ def create_app(config=None):
             people = db.execute('SELECT id,name FROM users WHERE id<>? ORDER BY name', (g.user['id'],)).fetchall()
         kind = request.form.get('kind') or ('team' if request.args.get('kind') == 'team' else 'solo')
         return render_template('new.html', team_tags=team_tags, projects=projects, picked=request.form.getlist('tags'),
-                               kind=kind, max_team=MAX_TEAM, people=people, picked_members=request.form.getlist('members'),
-                               picked_assignee=request.form.get('assignee', ''))
+                               kind=kind, max_team=MAX_TEAM, people=people, picked_members=request.form.getlist('members'))
 
     # ---------------- 团队共同维护标签 ----------------
     @app.get('/tags')
@@ -558,8 +560,8 @@ def create_app(config=None):
             titles_before = db.execute('SELECT COUNT(*) FROM titles_seen WHERE user_id=?', (g.user['id'],)).fetchone()[0]
             fresh_titles = titles.take_unseen(db, g.user['id'])
             teams_after = unlocks.team_count(db, g.user['id'])
-            # 大任务：颁奖时说出和谁一起做的
-            crew = teams.members_by_task(db, [row['task_id'] for row in awards if row['kind'] == 'team'])
+            # 颁奖时说出和谁一起做的
+            crew = teams.members_by_task(db, [row['task_id'] for row in awards])
             credited = {task_id: {row[0] for row in db.execute('SELECT user_id FROM honors WHERE task_id=?', (task_id,))}
                         for task_id in crew}
         # 这一批之前是什么样：用来算"第一枚""新种类""凑齐一行""全收集""升级"这些要放大庆祝的时刻
@@ -847,8 +849,8 @@ def create_app(config=None):
     @login_required
     def detail(task_id):
         with database() as db:
-            task = db.execute('''SELECT t.*,u.name owner_name,a.name assignee_name FROM tasks t
-                JOIN users u ON u.id=t.owner_id LEFT JOIN users a ON a.id=t.assignee_id WHERE t.id=?''', (task_id,)).fetchone()
+            task = db.execute('''SELECT t.*,u.name owner_name FROM tasks t JOIN users u ON u.id=t.owner_id WHERE t.id=?''',
+                              (task_id,)).fetchone()
             if not task:
                 abort(404)
             team = task['kind'] == 'team'
@@ -858,24 +860,26 @@ def create_app(config=None):
                 big = db.execute('''SELECT t.*,u.name owner_name FROM tasks t JOIN users u ON u.id=t.owner_id WHERE t.id=?''',
                                  (task['parent_id'],)).fetchone()
                 big = dict(big, members=teams.members_by_task(db, [big['id']])[big['id']])
-            # 大任务：一起做的人、拆出来的分工、这次发了勋章的人
-            members = teams.members_by_task(db, [task_id])[task_id] if team else []
-            pieces = db.execute('''SELECT t.*,u.name owner_name,a.name assignee_name FROM tasks t JOIN users u ON u.id=t.owner_id
-                LEFT JOIN users a ON a.id=t.assignee_id WHERE t.parent_id=? ORDER BY t.id''', (task_id,)).fetchall() if team else []
-            credited = [dict(row) for row in db.execute('''SELECT h.user_id id,u.name FROM honors h JOIN users u ON u.id=h.user_id
-                WHERE h.task_id=? ORDER BY h.user_id''', (task_id,))]
+            # 一起做的人、拆出来的分工（只有大任务有）和各自在做的人、这次发了勋章的人
+            members = teams.members_by_task(db, [task_id])[task_id]
+            pieces = db.execute('''SELECT t.*,u.name owner_name FROM tasks t JOIN users u ON u.id=t.owner_id
+                WHERE t.parent_id=? ORDER BY t.id''', (task_id,)).fetchall() if team else []
+            piece_crews = teams.members_by_task(db, [piece['id'] for piece in pieces])
+            credited = [dict(row) for row in db.execute('''SELECT h.user_id id,u.name,h.awarded_at FROM honors h
+                JOIN users u ON u.id=h.user_id WHERE h.task_id=? ORDER BY h.user_id''', (task_id,))]
             events = db.execute('SELECT e.*,u.name FROM events e JOIN users u ON u.id=e.user_id WHERE task_id=? ORDER BY e.id', (task_id,)).fetchall()
             award = db.execute('SELECT * FROM honors WHERE task_id=? ORDER BY user_id=? DESC,user_id', (task_id, g.user['id'])).fetchone()
             tags = discover.tags_by_task(db, [task_id])[task_id]
             claps = db.execute('SELECT COUNT(*) n, COALESCE(SUM(user_id=?),0) mine FROM claps WHERE task_id=?',
                                (g.user['id'], task_id)).fetchone()
             earned = discover.earned_keys(db, g.user['id'])
-            # 新人第一单：认领人还没有任何勋章时，提醒发布者多给一点鼓励
-            first_timer = bool(task['assignee_id']) and task['status'] in ('active', 'review') and not db.execute(
-                'SELECT 1 FROM honors WHERE user_id=?', (task['assignee_id'],)).fetchone()
-            debut = bool(award) and not db.execute(
+            # 新人第一单：一起做的人里有还没拿过勋章的，提醒验收的人多给一点鼓励；做完后标出谁拿到了第一枚
+            newcomers = [person['name'] for person in members if task['status'] in ('active', 'review')
+                         and person['id'] != g.user['id'] and not db.execute(
+                             'SELECT 1 FROM honors WHERE user_id=?', (person['id'],)).fetchone()]
+            debuts = [person['name'] for person in credited if not db.execute(
                 'SELECT 1 FROM honors WHERE user_id=? AND (awarded_at<? OR (awarded_at=? AND task_id<?))',
-                (award['user_id'], award['awarded_at'], award['awarded_at'], task_id)).fetchone()
+                (person['id'], person['awarded_at'], person['awarded_at'], task_id)).fetchone()]
             piece_tags = discover.tags_by_task(db, [piece['id'] for piece in pieces])
             team_tags = [row[0] for row in db.execute('SELECT name FROM org_tags ORDER BY position,name')] if team else []
             ext_pending = extend.pending(db, task_id)
@@ -883,7 +887,7 @@ def create_app(config=None):
             ext_checker = extend.checker(db, task, g.user['id'])
             topics = talk.for_task(db, task_id)
             why = []
-            if task['owner_id'] != g.user['id'] and (task['status'] == 'open' or team and task['status'] == 'active'):
+            if task['owner_id'] != g.user['id'] and task['status'] in ('open', 'active'):
                 # 详情页按分量从高到低说理由（推荐卡上为了三张不重样，第一句会换）
                 why = next((pick['ranked'] for pick in discover.recommend(db, g.user['id'], limit=100)
                             if pick['task']['id'] == task_id), [])
@@ -891,14 +895,14 @@ def create_app(config=None):
         if feedback and feedback['task_id'] != task_id:
             feedback = None
         member = any(person['id'] == g.user['id'] for person in members)
-        seat_open = team and task['status'] in ('open', 'active') and task['deadline'] > now() and \
+        seat_open = task['status'] in ('open', 'active') and task['deadline'] > now() and \
             (not task['team_size'] or len(members) < task['team_size'])
         return render_template('detail.html', task=task, events=events, award=award, feedback=feedback, tags=tags, big=big,
-                               claps=claps, new_kind=medal_key(task) not in earned, why=why[:3], first_timer=first_timer and not team,
-                               debut=debut and not team, team=team, members=members, member=member, seat_open=seat_open,
-                               pieces=pieces, piece_tags=piece_tags, team_tags=team_tags, credited=credited, topics=topics,
-                               ext_pending=ext_pending, ext_done=ext_done, ext_checker=ext_checker,
-                               ext_ask=task['status'] == 'active' and (member if team else task['assignee_id'] == g.user['id']) and not ext_checker,
+                               claps=claps, new_kind=medal_key(task) not in earned, why=why[:3], newcomers=newcomers,
+                               debuts=debuts, team=team, members=members, member=member, seat_open=seat_open,
+                               pieces=pieces, piece_crews=piece_crews, piece_tags=piece_tags, team_tags=team_tags,
+                               credited=credited, topics=topics, ext_pending=ext_pending, ext_done=ext_done, ext_checker=ext_checker,
+                               ext_ask=task['status'] == 'active' and member and not ext_checker,
                                ext_push=ext_checker and task['status'] in ('open', 'active'),
                                pieces_busy=sum(piece['status'] in ('active', 'review') for piece in pieces))
 
@@ -959,9 +963,10 @@ def create_app(config=None):
             # 大任务验收时勾选给谁发勋章；表单里没有这一栏时发给一起做的每个人
             credit = [int(uid) for uid in request.form.getlist('credit') if uid.isdigit()] if request.form.get('credit_form') else None
             act(app.config['DATABASE'], task_id, g.user['id'], action, request.form.get('body', ''), credit)
-            if action in ('claim', 'join', 'submit', 'accept', 'return'):
-                session['task_feedback'] = {'task_id': task_id, 'action': action}
-            flash({'accept': '验收通过，勋章已经发出去了。', 'join': '加入了，一起做吧。', 'leave': '已经退出。'}.get(action, '操作已保存。'),
+            if action in ('claim', 'join', 'submit', 'accept', 'return'):   # 小任务的「认领」就是加入
+                session['task_feedback'] = {'task_id': task_id, 'action': 'join' if action == 'claim' else action}
+            flash({'accept': '验收通过，勋章已经发出去了。', 'join': '加入了，一起做吧。', 'claim': '接下了，开工吧。',
+                   'leave': '已经退出。'}.get(action, '操作已保存。'),
                   'success')
         except InvalidAction as error:
             flash(str(error), 'error')
