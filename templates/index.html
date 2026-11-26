@@ -31,7 +31,7 @@
       </a>
       {% if hand %}
       <div class="hand"><span>手上的 {{ hand|length }} 件</span>
-        {% for task in hand %}<a href="{{ url_for('detail', task_id=task.id) }}"><span class="st {{ task.status }}"><i></i></span><span>{{ task.title }}</span><em>{{ '等你验收' if task.status == 'review' and task.assignee_id != g.user.id else due_label(task.deadline)[0] }}</em></a>{% endfor %}
+        {% for task in hand %}<a href="{{ url_for('detail', task_id=task.id) }}"><span class="st {{ task.status }}"><i></i></span><span>{{ task.title }}</span><em>{{ '等你验收' if task.status == 'review' else due_label(task.deadline)[0] }}</em></a>{% endfor %}
       </div>
       {% endif %}
     </div>

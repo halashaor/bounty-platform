@@ -8,11 +8,13 @@ NOTE_LIMIT = 200
 
 
 def checker(db, task, user_id):
-    if task['kind'] == 'team':
+    """The publisher; a publisher doing the task too extends it directly. A share is answered by whoever split it
+    off or by the big task's publisher, but not by someone doing that share: they ask the other one."""
+    if not task['parent_id']:
         return task['owner_id'] == user_id
-    if task['assignee_id'] == user_id:
+    if db.execute('SELECT 1 FROM task_members WHERE task_id=? AND user_id=?', (task['id'], user_id)).fetchone():
         return False
-    return task['owner_id'] == user_id or bool(task['parent_id'] and db.execute(
+    return task['owner_id'] == user_id or bool(db.execute(
         "SELECT 1 FROM tasks WHERE id=? AND kind='team' AND owner_id=?", (task['parent_id'], user_id)).fetchone())
 
 
@@ -51,8 +53,7 @@ def ask(path, task_id, user_id, raw_deadline, reason, tz):
     reason = _note(reason, required=True)
     with connect(path, write=True) as db:
         task = _task(db, task_id)
-        doing = db.execute('SELECT 1 FROM task_members WHERE task_id=? AND user_id=?', (task_id, user_id)).fetchone() \
-            if task['kind'] == 'team' else task['assignee_id'] == user_id
+        doing = db.execute('SELECT 1 FROM task_members WHERE task_id=? AND user_id=?', (task_id, user_id)).fetchone()
         if task['status'] != 'active' or not doing or checker(db, task, user_id):
             raise InvalidAction('只有正在做的人能申请延期，验收人可以直接延期。')
         if pending(db, task_id):

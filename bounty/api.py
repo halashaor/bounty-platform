@@ -95,8 +95,8 @@ def deadline(data, optional=False):
 
 
 def task(db, task_id):
-    row = db.execute('''SELECT t.*,o.name owner_name,a.name assignee_name FROM tasks t
-        JOIN users o ON o.id=t.owner_id LEFT JOIN users a ON a.id=t.assignee_id WHERE t.id=?''', (task_id,)).fetchone()
+    row = db.execute('''SELECT t.*,o.name owner_name FROM tasks t JOIN users o ON o.id=t.owner_id WHERE t.id=?''',
+                     (task_id,)).fetchone()
     if not row:
         abort(404, description='任务不存在。')
     result = dict(row)
@@ -111,7 +111,9 @@ def detail(task_id):
         result['events'] = [dict(r) for r in db.execute('''SELECT e.*,u.name user_name FROM events e
             JOIN users u ON u.id=e.user_id WHERE task_id=? ORDER BY e.id DESC LIMIT 50''', (task_id,))][::-1]
         result['extensions'] = [dict(r) for r in db.execute('SELECT * FROM extensions WHERE task_id=? ORDER BY id', (task_id,))]
-        result['pieces'] = [dict(r) for r in db.execute('SELECT id,title,status,assignee_id FROM tasks WHERE parent_id=? ORDER BY id', (task_id,))]
+        pieces = [dict(r) for r in db.execute('SELECT id,title,status FROM tasks WHERE parent_id=? ORDER BY id', (task_id,))]
+        crews = teams.members_by_task(db, [piece['id'] for piece in pieces])
+        result['pieces'] = [dict(piece, members=crews[piece['id']]) for piece in pieces]
     return result
 
 
@@ -156,9 +158,12 @@ def task_list():
             if value not in allowed:
                 raise InvalidAction(f'{key} 无效。')
             clauses.append(f't.{key}=?'); values.append(value)
-    for key in ('owner_id', 'assignee_id', 'parent_id'):
+    for key in ('owner_id', 'parent_id'):
         if request.args.get(key):
             clauses.append(f't.{key}=?'); values.append(integer(request.args[key], key))
+    if request.args.get('assignee_id'):   # 谁在做（加入了的）
+        clauses.append('t.id IN (SELECT task_id FROM task_members WHERE user_id=?)')
+        values.append(integer(request.args['assignee_id'], 'assignee_id'))
     for key in ('project',):
         if request.args.get(key):
             clauses.append(f't.{key}=?'); values.append(request.args[key])

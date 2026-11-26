@@ -1,7 +1,7 @@
 """大任务：好几个人一起做的任务（tasks.kind='team'）。想做的人「加入」，发布者自己也可以加入；一起做的任何一个人都能
 提交成果，发布者验收时选这次给谁发勋章（默认一起做的每个人）。
 
-做的过程中随时可以拆出「分工」：分工就是普通小任务（tasks.parent_id 指向大任务），一个人认领、拿自己的勋章；
+做的过程中随时可以拆出「分工」：分工就是普通小任务（tasks.parent_id 指向大任务），谁想做谁加入、拿自己的勋章；
 接下分工也就加入了大任务。分工不用一开始就拆好，想到再拆，不拆也行。"""
 from markupsafe import Markup
 from .db import connect
@@ -10,8 +10,8 @@ from .service import InvalidAction, insert_task, now, parse_deadline
 
 MAX_PIECES = 30
 NOTE_LIMIT = 200
-# 还能接手的任务（表别名 t）：没人做的，或者在做但人还没满的大任务
-JOINABLE = '''(t.status='open' OR (t.kind='team' AND t.status='active' AND (t.team_size IS NULL
+# 还能接手的任务（表别名 t）：没人做的，或者在做、人还没满的（小任务不限人数，大任务可能限）
+JOINABLE = '''(t.status='open' OR (t.status='active' AND (t.team_size IS NULL
     OR (SELECT COUNT(*) FROM task_members m WHERE m.task_id=t.id) < t.team_size)))'''
 
 

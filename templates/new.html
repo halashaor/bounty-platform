@@ -12,8 +12,8 @@
   <form class="editor panel" method="post" action="{{ url_for('new_task') }}" data-editor>
     {{ csrf() }}
     <div class="kind-switch" role="radiogroup" aria-label="发布什么">
-      <label><input type="radio" name="kind" value="solo" {% if kind != 'team' %}checked{% endif %} data-preview="kind"><b>小任务</b><small>一个人认领，一个人做完</small></label>
-      <label><input type="radio" name="kind" value="team" {% if kind == 'team' %}checked{% endif %} data-preview="kind"><b>大任务</b><small>好几个人加入，一起做完</small></label>
+      <label><input type="radio" name="kind" value="solo" {% if kind != 'team' %}checked{% endif %} data-preview="kind"><b>小任务</b><small>谁想做谁加入，不拆分工</small></label>
+      <label><input type="radio" name="kind" value="team" {% if kind == 'team' %}checked{% endif %} data-preview="kind"><b>大任务</b><small>好几个人加入，可以拆出分工</small></label>
     </div>
     <h1>发布任务</h1>
     <p class="intro">写清楚要什么、做到什么程度算完成。发布后会出现在「发现」里，系统会推荐给做过相似任务的同学。<span class="team-only">大任务一起做的每个人都拿勋章；做着做着想分头干，可以随时拆出分工。</span></p>
@@ -46,23 +46,16 @@
       <label class="field"><span>截止时间<small>按你这里的时间填</small></span>
         <input type="datetime-local" name="deadline" required value="{{ form.get('deadline', '') }}"></label>
     </div>
-    <div class="field solo-only"><span>指定谁来做<small>可选；不指定就发到「发现」里，谁都能接</small></span>
-      <div class="tag-pick assign-pick">
-        <label class="chip"><input type="radio" name="assignee" value="" {% if not picked_assignee %}checked{% endif %}>不指定</label>
-        {% for person in people %}<label class="chip"><input type="radio" name="assignee" value="{{ person.id }}" {% if picked_assignee == person.id|string %}checked{% endif %}>{{ ava(person.name, person.id) }}{{ person.name }}</label>{% endfor %}
-      </div>
-      <small class="field-note">指定后任务直接交给 TA，进入「进行中」，不会出现在「发现」里。</small>
-    </div>
-    <div class="field team-only"><span>指定谁一起做<small>可选，可以多选；之后别人还能加入</small></span>
+    <div class="field"><span>指定谁来做<small>可选，可以多选；不指定就发到「发现」里，谁想做谁加入，之后别人也还能加入</small></span>
       <div class="tag-pick assign-pick">
         {% for person in people %}<label class="chip"><input type="checkbox" name="members" value="{{ person.id }}" {% if person.id|string in picked_members %}checked{% endif %}>{{ ava(person.name, person.id) }}{{ person.name }}</label>{% endfor %}
       </div>
     </div>
-    <div class="two team-only">
-      <label class="field"><span>想要几个人<small>人够了就不再招人</small></span>
+    <div class="two">
+      <label class="field team-only"><span>想要几个人<small>人够了就不再招人</small></span>
         <select name="team_size">{% set size = form.get('team_size', '') %}<option value="">不限</option>{% for n in [2, 3, 4, 5, 6, 8, 10] %}<option value="{{ n }}" {% if size == n|string %}selected{% endif %}>{{ n }} 人</option>{% endfor %}</select></label>
       <div class="field"><span>你自己</span>
-        <label class="self-join"><input type="checkbox" name="join_self" value="1" {% if form.get('join_self') or (request.method == 'GET' and kind == 'team') %}checked{% endif %}><span><b>我也一起做</b><small>发布者也能加入自己的大任务；验收时至少要发给一个别人</small></span></label></div>
+        <label class="self-join"><input type="checkbox" name="join_self" value="1" {% if form.get('join_self') or (request.method == 'GET' and kind == 'team') %}checked{% endif %}><span><b>我也一起做</b><small>发布者也能加入；验收时至少要发给一个别人</small></span></label></div>
     </div>
     <div class="submit-row"><p>发布后也可以在讨论区补充说明。</p><button class="btn btn-big primary" type="submit">{{ icon('plus') }}发布</button></div>
   </form>
@@ -77,7 +70,7 @@
       <div class="tags" data-out="tags"></div>
       <div class="card-foot"><span class="eff" data-out="effort">{{ effort_labels[importance] }}</span><span class="xp" data-out="xp">+{{ task_xp(importance ~ '-' ~ urgency) }}</span><span class="who">{{ ava(g.user.name, g.user.id) }}{{ g.user.name }}</span></div>
     </article>
-    <div class="explain panel"><span data-preview-medal-big>{{ medal(importance ~ '-' ~ urgency, 'anim') }}</span><div><b data-out="medal">{{ '一起做的每个人得到' if kind == 'team' else '完成的人得到' }}「{{ medals[importance ~ '-' ~ urgency].name }}」</b><p>任务越重，勋章填得越满、经验越多；加急的勋章换暖色，挂「急」角标。</p></div></div>
+    <div class="explain panel"><span data-preview-medal-big>{{ medal(importance ~ '-' ~ urgency, 'anim') }}</span><div><b data-out="medal">{{ '一起做的每个人得到' if kind == 'team' or picked_members|length > 1 else '完成的人得到' }}「{{ medals[importance ~ '-' ~ urgency].name }}」</b><p>任务越重，勋章填得越满、经验越多；加急的勋章换暖色，挂「急」角标。</p></div></div>
     <template data-medal-template>{% for key in medals %}<span data-key="{{ key }}">{{ medal(key) }}</span>{% endfor %}</template>
   </aside>
 </div>

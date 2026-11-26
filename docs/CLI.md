@@ -63,6 +63,7 @@ mission task create --title '准备组会例题' --description '整理三道图�
   --requirements '文档链接与题解' --tag 讲解 --deadline '2027-01-20T18:00:00+08:00'
 mission task create --input task.json --assignee 2
 mission task create --input task.json --kind team --member 2 --member 3 --team-size 4 --join-self
+mission task create --input task.json --member 2 --member 3      # 小任务，指定两个人一起做
 mission task join 15
 mission task leave 15
 mission task split 15 --title '准备例题' --tag 讲解 --kind standard-normal --body '三道图论题'
@@ -86,7 +87,7 @@ mission task clap 15
 
 默认发布小任务，分量 `standard`、紧急程度 `normal`；分量还可选 `light`、`major`，紧急程度还可选 `urgent`。`--input -` 从标准输入读取 JSON，显式命令参数覆盖文件中同名字段。截止时间必须包含时区，避免 AI 将本地时间当成服务器时间；支持 `Z`。示例日期按实际任务调整。
 
-发布者不能指定自己；大任务想参与用 `--join-self`。大任务 `accept` 未传 `--credit` 时沿用网页默认发奖规则。分工的 `--kind` 为勋章类型，例如 `light-normal`、`major-urgent`；不是任务类型。没有增加任务删除、任意转派或管理员操作。
+小任务不限人数：`claim` 和 `join` 都是加入，有人在做也能加入；在做的人都能提交、`leave` 退出；验收时可用 `--credit` 选发给谁，未传时发给所有在做的人。`--team-size` 只对大任务有效。发布时用 `--member` 指定一个或几个人（旧的 `--assignee` 也当作指定一个人），不能指定自己；发布者想参与用 `--join-self`。`--assignee-id` 查询某人在做的任务。分工的 `--kind` 为勋章类型，例如 `light-normal`、`major-urgent`；不是任务类型。没有增加任务删除、任意转派或管理员操作。
 
 ## 延期
 

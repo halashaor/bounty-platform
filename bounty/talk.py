@@ -20,7 +20,7 @@ PREVIEW = 280
 INVOLVED = '''(t.user_id=:me
  OR EXISTS (SELECT 1 FROM posts x WHERE x.topic_id=t.id AND x.user_id=:me)
  OR EXISTS (SELECT 1 FROM post_mentions m JOIN posts x ON x.id=m.post_id WHERE x.topic_id=t.id AND m.user_id=:me)
- OR EXISTS (SELECT 1 FROM tasks k WHERE k.id=t.task_id AND :me IN (k.owner_id,k.assignee_id))
+ OR EXISTS (SELECT 1 FROM tasks k WHERE k.id=t.task_id AND k.owner_id=:me)
  OR EXISTS (SELECT 1 FROM task_members k WHERE k.task_id=t.task_id AND k.user_id=:me))'''
 UNREAD = '''p.user_id<>:me AND p.id>COALESCE((SELECT r.post_id FROM topic_reads r WHERE r.topic_id=t.id AND r.user_id=:me),0)'''
 
@@ -259,7 +259,7 @@ def install(app):
         with connect(path) as db:
             # 能关联的任务：自己发布 / 在做 / 一起做、还没完成的；从任务页过来的那个任务也放进去
             tasks = db.execute('''SELECT DISTINCT t.id,t.title FROM tasks t LEFT JOIN task_members m ON m.task_id=t.id
-                WHERE (t.status<>'done' AND (t.owner_id=:me OR t.assignee_id=:me OR m.user_id=:me)) OR t.id=:task
+                WHERE (t.status<>'done' AND (t.owner_id=:me OR m.user_id=:me)) OR t.id=:task
                 ORDER BY t.id DESC LIMIT 40''', dict(me=g.user['id'], task=task_id)).fetchall()
             members = people(db)
         return render_template('talk_new.html', tasks=tasks, members=members, form=form, task_id=task_id,

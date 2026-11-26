@@ -208,7 +208,9 @@
       const tags = pickedTags().slice(0, 3);
       out('tags').forEach(el => { el.innerHTML = tags.map(t => `<span class="tag">${escape(t)}</span>`).join(''); });
       out('effort').forEach(el => { el.textContent = effort[importance]; });
-      const team = value('kind') === 'team';
+      // 大任务，或者指定了不止一个人（连同发布者自己）：一起做的每个人一份
+      const team = value('kind') === 'team' ||
+        editor.querySelectorAll('[name=members]:checked').length + (editor.querySelector('[name=join_self]:checked') ? 1 : 0) > 1;
       out('xp').forEach(el => { el.textContent = `${team ? '每人 ' : ''}+${urgency === 'urgent' ? xp[importance] * 1.5 : xp[importance]}`; });
       out('medal').forEach(el => { el.textContent = `${team ? '一起做的每个人得到' : '完成的人得到'}「${names[key]}」`; });
       if (key !== lastKey) {

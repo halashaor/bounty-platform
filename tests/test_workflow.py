@@ -68,11 +68,11 @@ class WorkflowTest(unittest.TestCase):
             act(self.path, self.task_id, 1, 'settle', '重复')
 
     def test_owner_and_state_guards(self):
-        for uid, action in ((1, 'claim'), (3, 'submit'), (3, 'accept'), (3, 'settle')):
+        for uid, action in ((3, 'submit'), (3, 'accept'), (3, 'settle'), (2, 'leave')):
             with self.assertRaises(InvalidAction):
                 act(self.path, self.task_id, uid, action, '越权')
         act(self.path, self.task_id, 2, 'claim')
-        for uid, action in ((3, 'submit'), (2, 'accept'), (1, 'accept'), (3, 'return')):
+        for uid, action in ((3, 'submit'), (2, 'accept'), (1, 'accept'), (3, 'return'), (2, 'join')):
             with self.assertRaises(InvalidAction):
                 act(self.path, self.task_id, uid, action, '越权')
         act(self.path, self.task_id, 2, 'submit', '成果')
@@ -83,19 +83,21 @@ class WorkflowTest(unittest.TestCase):
         with self.assertRaises(InvalidAction):
             act(self.path, self.task_id, 2, 'settle', '越权')
 
-    def test_concurrent_claim_has_one_winner(self):
+    def test_concurrent_claims_add_each_person_once(self):
+        # 小任务谁想做谁加入：同时点的人都进来，同一个人连点两次只算一次
         def claim(uid):
             try:
                 act(self.path, self.task_id, uid, 'claim')
                 return True
             except InvalidAction:
                 return False
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            results = list(executor.map(claim, [2, 3]))
-        self.assertEqual(sum(results), 1)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            results = list(executor.map(claim, [2, 3, 2, 3]))
+        self.assertEqual(sum(results), 2)
         with connect(self.path) as db:
-            self.assertEqual(db.execute('SELECT COUNT(*) FROM events').fetchone()[0], 1)
-            self.assertIn(db.execute('SELECT assignee_id FROM tasks').fetchone()[0], (2, 3))
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM events').fetchone()[0], 2)
+            self.assertEqual(sorted(r[0] for r in db.execute('SELECT user_id FROM task_members')), [2, 3])
+            self.assertEqual(db.execute('SELECT status FROM tasks').fetchone()[0], 'active')
 
     def test_validation_deadline_and_priority(self):
         for patch in ({'importance': 'invalid'}, {'importance': ''}, {'urgency': 'invalid'},
@@ -168,10 +170,10 @@ class WorkflowTest(unittest.TestCase):
     def test_success_feedback_is_confirmed_and_consumed(self):
         owner, worker, other = self.clients
         base = f'/tasks/{self.task_id}'
-        failed = self.post(owner, base + '/claim', {})
+        failed = self.post(other, base + '/submit', {'body': 'not in it'})
         self.assertNotIn('data-confirmed-action=', failed.text)
         claimed = self.post(worker, base + '/claim', {})
-        self.assertIn('data-confirmed-action="claim"', claimed.text)
+        self.assertIn('data-confirmed-action="join"', claimed.text)
         self.assertNotIn('data-confirmed-action=', worker.get(base).text)
         failed = self.post(other, base + '/submit', {'body': 'not my task'})
         self.assertNotIn('data-confirmed-action=', failed.text)
@@ -253,8 +255,8 @@ class WorkflowTest(unittest.TestCase):
         client = app.test_client()
         self.post(client, '/auth/login', {'name': '认领人', 'password': 'demo12345'})
         response = client.get('/')
-        # 发现页默认只列可认领的任务，一页 12 个
-        self.assertEqual(response.text.count('data-task='), 17)
+        # 发现页默认只列能接手的任务（没人做的，和还能加入的），一页 12 个
+        self.assertEqual(response.text.count('data-task='), 21)
         self.assertEqual(response.text.count('class="wall-zone"'), 2)
         # 演示账号「认领人」选过方向：两排推荐各三张，互不重复
         picks = response.text.split('data-lane-body="want"')[1]

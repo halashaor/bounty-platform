@@ -197,9 +197,9 @@ def build_parser():
     create.add_argument('--kind', choices=['solo', 'team'])
     create.add_argument('--importance', choices=['light', 'standard', 'major'])
     create.add_argument('--urgency', choices=['normal', 'urgent'])
-    create.add_argument('--assignee', type=int)
+    create.add_argument('--assignee', type=int, help='指定一个人来做，同 --member')
     create.add_argument('--member', dest='members', type=int, action='append')
-    create.add_argument('--team-size', type=int)
+    create.add_argument('--team-size', type=int, help='大任务想要几个人（不传为不限）；小任务不限人数')
     create.add_argument('--join-self', action='store_true', default=None)
     for name in ('claim', 'join', 'leave', 'submit', 'accept', 'return', 'comment', 'clap'):
         sub = task.add_parser(name)
@@ -434,7 +434,9 @@ def display(result, machine):
     elif isinstance(data, dict) and 'title' in data and 'deadline' in data:
         print(f"#{data['id']}  {data['title']}  [{data['status']}]")
         print('截止：' + data['deadline'])
-        print('发布：' + data['owner_name'] + '  认领：' + (data.get('assignee_name') or '—'))
+        people = '、'.join(person['name'] for person in data.get('members') or [])
+        doing = '  在做：' + (people or '—')
+        print('发布：' + data['owner_name'] + doing)
         print(data['description'])
         print('交付要求：' + data['requirements'])
     elif isinstance(data, dict) and 'items' in data and all('title' in item for item in data['items']):

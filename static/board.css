@@ -1257,7 +1257,6 @@ a.mode:active{transform:scale(.98)}
 .kind-switch label:has(input:checked) small{color:rgba(255,255,255,.7)}
 .kind-switch label:has(input:focus-visible){outline:2px solid var(--blue);outline-offset:2px}
 .compose:not(:has(input[name=kind][value=team]:checked)) .team-only{display:none}
-.compose:has(input[name=kind][value=team]:checked) .solo-only{display:none}
 .self-join{display:flex;align-items:center;gap:12px;min-height:46px;padding:10px 14px;border:1.5px solid var(--line-2);border-radius:14px;cursor:pointer}
 .self-join:has(input:checked){border-color:var(--ink);background:var(--ground)}
 .self-join input{width:18px;height:18px;flex:none;accent-color:var(--ink)}

@@ -256,7 +256,8 @@ def initialize(path):
             # 旧版 v1.1.0 的「有帮助」标记：意思和鼓掌一样，升级时变成鼓掌（原表留着不动）
             db.execute('''INSERT OR IGNORE INTO claps (task_id,user_id,created_at)
                 SELECT a.task_id,a.user_id,a.created_at FROM appreciations a JOIN tasks t ON t.id=a.task_id
-                WHERE t.status='done' AND t.assignee_id<>a.user_id''')
+                WHERE t.status='done' AND COALESCE(t.assignee_id,0)<>a.user_id
+                  AND a.user_id NOT IN (SELECT user_id FROM task_members WHERE task_id=t.id)''')
         # Older tasks had one fixed category; it becomes their first tag so search and recommendations keep working.
         db.execute('INSERT OR IGNORE INTO task_tags (task_id,tag) SELECT id,category FROM tasks WHERE id NOT IN (SELECT task_id FROM task_tags)')
         if new_tag_table:
@@ -280,6 +281,14 @@ def initialize(path):
             SELECT t.id,t.assignee_id,t.importance || '-' || t.urgency,
                    COALESCE((SELECT MAX(created_at) FROM events WHERE task_id=t.id AND kind='accept'),t.created_at)
             FROM tasks t WHERE t.status='done' AND t.assignee_id IS NOT NULL''')
+        # 放在最后：上面从旧记录补勋章、补鼓掌的几步还要用 assignee_id
+        if db.execute('SELECT 1 FROM tasks WHERE assignee_id IS NOT NULL LIMIT 1').fetchone():
+            # 小任务改成谁想做谁加入：以前的认领人搬进「一起做的人」（task_members），从认领或指定那一刻算加入；
+            # 搬完清空 assignee_id，以后谁在做只看 task_members。认领、指定的动态和勋章都不动
+            db.execute('''INSERT OR IGNORE INTO task_members (task_id,user_id,joined_at)
+                SELECT t.id,t.assignee_id,COALESCE((SELECT MIN(e.created_at) FROM events e WHERE e.task_id=t.id
+                    AND e.kind IN ('claim','assign')),t.created_at) FROM tasks t WHERE t.assignee_id IS NOT NULL''')
+            db.execute('UPDATE tasks SET assignee_id=NULL WHERE assignee_id IS NOT NULL')
 
 
 def _honors_per_person(db):
