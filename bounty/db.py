@@ -170,6 +170,45 @@ CREATE TABLE IF NOT EXISTS topic_reads (
  post_id INTEGER NOT NULL,
  PRIMARY KEY(user_id,topic_id)
 );
+CREATE TABLE IF NOT EXISTS notes (
+ id INTEGER PRIMARY KEY,
+ user_id INTEGER NOT NULL REFERENCES users(id),
+ kind TEXT NOT NULL DEFAULT 'progress' CHECK(kind IN ('progress','problem')),
+ body TEXT NOT NULL,
+ task_id INTEGER REFERENCES tasks(id),
+ private INTEGER NOT NULL DEFAULT 0,
+ spawned_task_id INTEGER REFERENCES tasks(id),
+ solved_at TEXT,
+ solved_by INTEGER REFERENCES users(id),
+ solution TEXT,
+ via TEXT NOT NULL DEFAULT 'web' CHECK(via IN ('web','cli')),
+ tz TEXT,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS notes_by_user ON notes(user_id,created_at);
+CREATE INDEX IF NOT EXISTS notes_by_task ON notes(task_id);
+CREATE TABLE IF NOT EXISTS note_mentions (
+ note_id INTEGER NOT NULL REFERENCES notes(id),
+ user_id INTEGER NOT NULL REFERENCES users(id),
+ shown_at TEXT,
+ seen_at TEXT,
+ PRIMARY KEY(note_id,user_id)
+);
+CREATE INDEX IF NOT EXISTS note_mentions_by_user ON note_mentions(user_id,seen_at);
+CREATE TABLE IF NOT EXISTS todos (
+ id INTEGER PRIMARY KEY,
+ user_id INTEGER NOT NULL REFERENCES users(id),
+ title TEXT NOT NULL,
+ task_id INTEGER REFERENCES tasks(id),
+ state TEXT NOT NULL DEFAULT 'todo' CHECK(state IN ('todo','doing','done','dropped')),
+ private INTEGER NOT NULL DEFAULT 0,
+ via TEXT NOT NULL DEFAULT 'web' CHECK(via IN ('web','cli')),
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ done_at TEXT
+);
+CREATE INDEX IF NOT EXISTS todos_by_user ON todos(user_id,state);
 '''
 
 

@@ -4,7 +4,7 @@ import sqlite3
 
 from flask import Blueprint, abort, current_app, g, jsonify, request
 from werkzeug.exceptions import HTTPException
-from . import cli_auth, discover, extend, progress, tags, talk, teams
+from . import cli_auth, discover, extend, notes, progress, tags, talk, teams
 from .db import connect
 from .service import InvalidAction, act, clap, create_task, STATUSES
 
@@ -337,6 +337,90 @@ def answer(topic_id):
     with connect(database()) as db:
         post = talk.posts(db, topic_id, post_id - 1, 1)[0]
     return ok(dict(topic_id=topic_id, post=post), 201)
+
+
+# ---------------- 手帳 ----------------
+FOLD = 3   # 页面上补充超过三行就折起来
+
+
+def note_json(note):
+    lines = note['more'].splitlines() if note['more'] else []
+    return dict(id=note['id'], user_id=note['user_id'], user_name=note['user_name'], kind=note['kind'], head=note['head'],
+                more=note['more'], task_id=note['task_id'], task_title=note['task_title'], private=bool(note['private']),
+                solved=note['solved'], solution=note['solution'], solved_by=note['solved_name'],
+                spawned_task_id=note['spawned_task_id'], named=[p['name'] for p in note['named']], ai=note['ai'],
+                created_at=note['created_at'], folded=len(lines) > FOLD)
+
+
+def one_note(note_id):
+    with connect(database()) as db:
+        rows = db.execute(f"{notes.NOTE_SELECT} WHERE n.id=? AND (n.private=0 OR n.user_id=?)", (note_id, g.user['id'])).fetchall()
+        if not rows:
+            abort(404, description='记录不存在。')
+        return note_json(notes._decorate(db, rows, g.user['id'])[0])
+
+
+@api.get('/notes')
+def note_list():
+    owner = integer(request.args['user_id'], 'user_id') if request.args.get('user_id') else g.user['id']
+    limit = integer(request.args.get('limit', '20'), 'limit', maximum=100)
+    with connect(database()) as db:
+        if not db.execute('SELECT 1 FROM users WHERE id=?', (owner,)).fetchone():
+            abort(404, description='成员不存在。')
+        data = notes.timeline(db, owner, g.user['id'], timezone.utc, request.args.get('before') or None, limit)
+    items = [note_json(item['note']) for day in data['days'] for item in day['items'] if item['type'] == 'note']
+    return ok(dict(items=items, before=data['older']))
+
+
+@api.post('/notes')
+def note_create():
+    data = payload()
+    task_id = integer(data['task_id'], 'task_id') if data.get('task_id') is not None else None
+    note_id, _ = notes.write(database(), g.user['id'], text(data, 'body'), text(data, 'kind', 'progress'), task_id,
+                             bool(data.get('private')), 'cli')
+    return ok(one_note(note_id), 201)
+
+
+@api.post('/notes/<int:note_id>/solve')
+def note_solve(note_id):
+    notes.solve(database(), g.user['id'], note_id, text(payload(), 'how'))
+    return ok(one_note(note_id))
+
+
+@api.get('/team')
+def team_view():
+    with connect(database()) as db:
+        data = notes.team(db, g.user['id'], timezone.utc, request.args.get('scope') == 'crew')
+    return ok(dict(stuck=[note_json(note) for note in data['stuck']],
+                   people=[dict(id=p['id'], name=p['name'], last_active=p['last_at'],
+                                doing=[dict(task_id=t['id'], title=t['title'], now=t['now']) for t in p['doing']],
+                                last=p['last']['head'] if p.get('last') else None) for p in data['people']],
+                   quiet=[dict(id=p['id'], name=p['name'], doing=[t['title'] for t in p['doing']]) for p in data['quiet']]))
+
+
+@api.get('/todos')
+def todo_list():
+    with connect(database()) as db:
+        groups = notes.todos(db, g.user['id'], g.user['id'])
+    return ok([dict(task_id=group['task_id'], title=group['title'],
+                    items=[dict(id=t['id'], title=t['title'], state=t['state'], private=bool(t['private'])) for t in group['items']])
+               for group in groups if group['items'] or group['task_id']])
+
+
+@api.post('/todos')
+def todo_create():
+    data = payload()
+    task_id = integer(data['task_id'], 'task_id') if data.get('task_id') is not None else None
+    todo_id = notes.add_todo(database(), g.user['id'], text(data, 'title'), task_id, bool(data.get('private')), 'cli')
+    return ok(dict(id=todo_id, title=text(data, 'title').strip(), state='todo', task_id=task_id), 201)
+
+
+@api.post('/todos/<int:todo_id>')
+def todo_update(todo_id):
+    data = payload()
+    todo = notes.set_todo(database(), g.user['id'], todo_id, data.get('state'),
+                          None if 'private' not in data else bool(data['private']))
+    return ok(dict(id=todo['id'], title=todo['title'], state=todo['state'], private=bool(todo['private'])))
 
 
 def install(app):

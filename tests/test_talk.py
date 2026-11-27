@@ -62,7 +62,8 @@ class Fixture(unittest.TestCase):
         return create_task(self.path, owner, values, timezone.utc)
 
     def badge(self, uid):
-        found = re.search(r'寄合<b[^>]*>(\d+)</b>', self.web[uid].get('/mine').text)
+        # 顶栏「大家」上只亮一个小点；数字在「寄合」页签上
+        found = re.search(r'寄合<i class="ndot" aria-label="(\d+) 个话题有新帖">', self.web[uid].get('/talk').text)
         return int(found.group(1)) if found else 0
 
 

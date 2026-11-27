@@ -522,7 +522,7 @@ class WorkflowTest(unittest.TestCase):
         for _ in range(3):
             self.finish(create_task(self.path, 1, {**self.data, 'urgency': 'urgent'}), body='救了急')
         worker = self.clients[1]
-        self.assertIn('mailbox has-mail', worker.get('/').text)
+        self.assertIn('有新勋章或新解锁', worker.get('/').text)   # 「成就」上亮一个小点
         with connect(self.path) as db:
             board = {item['key']: item for item in titles.board(db, 2)}
             self.assertTrue(board['firefighter']['done'])
@@ -678,7 +678,7 @@ class WorkflowTest(unittest.TestCase):
         revealed = self.post_json(worker, '/honors/reveal')
         self.assertIn('青色', revealed['awards'][0]['opens'])
         self.assertIn('长梁', revealed['awards'][0]['opens'])
-        self.assertIn('class="new-dot"', worker.get('/').text)
+        self.assertIn('样新解锁', worker.get('/honors').text)      # 成就页「縁側」页签上亮一个小点
         build = save([['beam-6', 'cyan', 2, 2, 0, 0], ['medal-standard-normal', 'white', 3, 2, 0, 0]], bg='cyan', view=3).json['id']
         with connect(self.path) as db:
             saved = blocks.mine(db, 2)[0]
@@ -691,7 +691,7 @@ class WorkflowTest(unittest.TestCase):
         self.assertIn('"view": 3', honors)
         play = worker.get('/play').text
         self.assertIn('积木墙', play)
-        self.assertNotIn('class="new-dot"', worker.get('/').text)   # 进过游戏角，「新」就收起来
+        self.assertNotIn('样新解锁', worker.get('/honors').text)   # 进过游戏角，小点就收起来
         self.assertIn('小房子', self.clients[2].get('/play').text)
         self.assertFalse(self.post_json(worker, f'/play/blocks/{build}/show')['shown'])
         self.assertEqual(self.post_json(self.clients[2], f'/play/blocks/{build}/show', status=400)['error'], '这件作品不存在。')

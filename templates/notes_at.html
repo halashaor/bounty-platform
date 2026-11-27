@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% from 'components/notes.html' import entry %}
+{% from 'components/sections.html' import tabs with context %}
+{% block title %}手帳 · 提到我 · 結 YUI{% endblock %}
+{% block body_class %}page-notes{% endblock %}
+{% block content %}
+<div class="wrap notes">
+  {{ tabs('mine', 'at') }}<h1 class="sr-only">提到我</h1>
+  <article class="log panel at-list" aria-label="提到我的记录">
+    {% if notes %}
+    <ol class="ents with-who">{% for note in notes %}{{ entry(note, who=true, stamp='date') }}{% endfor %}</ol>
+    {% else %}<p class="log-empty">还没有人在手帳里提到你。</p>{% endif %}
+  </article>
+</div>
+{% endblock %}

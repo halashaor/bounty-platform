@@ -1,10 +1,12 @@
 {% extends 'base.html' %}
 {% from 'components/icon.html' import icon %}
 {% from 'components/ui.html' import ava %}
+{% from 'components/sections.html' import tabs with context %}
 {% block title %}寄合 · 結 YUI{% endblock %}
 {% block body_class %}page-talk{% endblock %}
 {% block content %}
 <div class="wrap talk">
+  {{ tabs('team', 'talk') }}
   <header class="mine-head talk-head">
     <div><span class="label">寄合</span><div class="bigrow"><b class="big num">{{ talk_unread }}</b><span>个话题有你没看的新帖</span></div>
       <p class="talk-note">技术问题、交接进度都在这里说；各自的 AI 也能用命令行收发，AI 发的会标出来。<a href="{{ url_for('mission_cli.access') }}#ai">让 AI 也来</a></p></div>

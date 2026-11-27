@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% from 'components/icon.html' import icon %}
+{% from 'components/ui.html' import csrf %}
+{% from 'components/medal.html' import medal %}
+{% from 'components/notes.html' import days %}
+{% from 'components/sections.html' import tabs with context %}
+{% block title %}{{ '手帳' if mine else person.name ~ ' 的手帳' }} · 結 YUI{% endblock %}
+{% block body_class %}page-notes{% endblock %}
+{% block content %}
+{% set picked = request.args.get('task', '') %}
+<div class="wrap notes">
+  {% if mine %}{{ tabs('mine', 'notes') }}<h1 class="sr-only">手帳</h1>
+  {% else %}{{ tabs('team', 'notes') }}<header class="notes-head"><h1>{{ person.name }} 的手帳</h1></header>{% endif %}
+  <div class="ngrid{{ ' theirs' if not mine }}">
+    {% if mine %}
+    <form class="jot panel" id="jot" method="post" action="{{ url_for('notes.create') }}" data-jot>
+      {{ csrf() }}
+      <textarea name="body" required rows="2" maxlength="10000" placeholder="有进展或卡住了，记一笔；第一行写结论" aria-label="记一笔" data-mention></textarea>
+      <div class="jot-foot">
+        <div class="kseg" role="radiogroup" aria-label="记什么">
+          <label class="prog"><input type="radio" name="kind" value="progress" checked><i></i>进展</label>
+          <label class="prob"><input type="radio" name="kind" value="problem"><i></i>问题</label>
+        </div>
+        <label class="jpick">{{ icon('list') }}<select name="task" aria-label="挂在哪个任务上">
+          <option value="">不挂任务</option>
+          {% for t in tasks %}<option value="{{ t.id }}" {% if picked == t.id|string or (not picked and tasks|length == 1) %}selected{% endif %}>{{ t.title }}</option>{% endfor %}
+        </select></label>
+        <label class="jspawn"><input type="checkbox" name="spawn" value="1"><span class="cb">{{ icon('check') }}</span>顺手发成任务</label>
+        <button class="btn">记下</button>
+      </div>
+      <script type="application/json" data-people>{{ people|tojson }}</script>
+    </form>
+    {% endif %}
+
+    <article class="log panel" aria-label="记录">
+      {{ days(data, fresh, solved, '还没有记录。有进展或者卡住了，在上面记一笔；加入任务、提交、拿勋章会自动出现在这里。' if mine else '最近还没有记录。') }}
+      {% if data.older %}<a class="older" href="{{ page_url(before=data.older, new=none, solved=none) }}">更早{{ icon('down') }}</a>{% endif %}
+      {% if before %}<a class="older" href="{{ page_url(before=none) }}">回到最新</a>{% endif %}
+    </article>
+
+    <aside class="nside">
+      <section class="side-panel panel" id="todos" aria-labelledby="todos-title">
+        <h2 id="todos-title">{{ '要做的' if mine else person.name ~ ' 要做的' }}</h2>
+        {% set any = namespace(n=0) %}
+        {% for grp in groups %}{% if grp['items'] or (mine and (grp.task_id or loop.last)) %}{% set any.n = any.n + 1 %}
+        <div class="tgroup">
+          <div class="tgroup-h">{% if grp.medal %}{{ medal(grp.medal) }}<a href="{{ url_for('detail', task_id=grp.task_id) }}">{{ grp.title }}</a>{% else %}<span>其他</span>{% endif %}
+            {%- if mine %}<button class="todo-plus" type="button" aria-label="给「{{ grp.title }}」加一条待办" data-todo-plus>{{ icon('plus') }}</button>{% endif %}</div>
+          <ul class="todos">
+            {% for t in grp['items'] %}
+            <li class="todo {{ t.state }}" data-todo="{{ t.id }}">
+              {% if mine %}
+              <form method="post" action="{{ url_for('notes.update_todo', todo_id=t.id) }}" data-todo-form>{{ csrf() }}
+                <input type="hidden" name="state" value="{{ 'todo' if t.state == 'done' else 'done' }}">
+                <button class="tick" aria-label="{{ '标回没做' if t.state == 'done' else '做完了' }}：{{ t.title }}">{{ icon('check') }}</button></form>
+              {% else %}<span class="tick">{{ icon('check') }}</span>{% endif %}
+              <span class="todo-t">{{ t.title }}{% if t.private %}<i class="lock" title="只自己看">{{ icon('lock') }}</i>{% endif %}</span>
+              {% if mine and t.state != 'done' %}
+              <details class="todo-more"><summary aria-label="更多：{{ t.title }}">{{ icon('dots') }}</summary>
+                <div class="todo-pop">
+                  <form method="post" action="{{ url_for('notes.update_todo', todo_id=t.id) }}">{{ csrf() }}<input type="hidden" name="state" value="{{ 'todo' if t.state == 'doing' else 'doing' }}"><button>{{ '先不标在做' if t.state == 'doing' else '标成在做' }}</button></form>
+                  <form method="post" action="{{ url_for('notes.update_todo', todo_id=t.id) }}">{{ csrf() }}<input type="hidden" name="private" value="{{ '0' if t.private else '1' }}"><button>{{ '改成大家都能看' if t.private else '只自己看' }}</button></form>
+                  <form method="post" action="{{ url_for('notes.update_todo', todo_id=t.id) }}">{{ csrf() }}<input type="hidden" name="state" value="dropped"><button>不做了</button></form>
+                </div></details>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          {% if mine %}
+          <form class="todo-add" method="post" action="{{ url_for('notes.new_todo') }}"{% if grp['items'] %} hidden{% endif %}>{{ csrf() }}
+            {% if grp.task_id %}<input type="hidden" name="task" value="{{ grp.task_id }}">{% endif %}
+            {{ icon('plus') }}<input name="title" required maxlength="200" placeholder="加一条" aria-label="给「{{ grp.title }}」加一条待办"></form>
+          {% endif %}
+        </div>
+        {% endif %}{% endfor %}
+        {% if not any.n %}<p class="log-empty">还没有写待办。</p>{% endif %}
+      </section>
+    </aside>
+  </div>
+</div>
+{% endblock %}

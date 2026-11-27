@@ -5,12 +5,12 @@
 {% block title %}发布任务 · 結 YUI{% endblock %}
 {% block body_class %}page-new{% endblock %}
 {% block content %}
-{% set form = request.form %}
+{% set form = request.form if request.method == 'POST' else request.args %}
 {% set importance = form.get('importance', 'standard') %}
 {% set urgency = form.get('urgency', 'normal') %}
 <div class="wrap compose">
   <form class="editor panel" method="post" action="{{ url_for('new_task') }}" data-editor>
-    {{ csrf() }}
+    {{ csrf() }}{% if form.get('from_note', '').isdigit() %}<input type="hidden" name="from_note" value="{{ form.from_note }}">{% endif %}
     <div class="kind-switch" role="radiogroup" aria-label="发布什么">
       <label><input type="radio" name="kind" value="solo" {% if kind != 'team' %}checked{% endif %} data-preview="kind"><b>小任务</b><small>谁想做谁加入，不拆分工</small></label>
       <label><input type="radio" name="kind" value="team" {% if kind == 'team' %}checked{% endif %} data-preview="kind"><b>大任务</b><small>好几个人加入，可以拆出分工</small></label>

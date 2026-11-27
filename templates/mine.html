@@ -2,6 +2,7 @@
 {% from 'components/icon.html' import icon %}
 {% from 'components/medal.html' import medal %}
 {% from 'components/ui.html' import due, big_tag %}
+{% from 'components/sections.html' import tabs with context %}
 {% block title %}我的任务 · 結 YUI{% endblock %}
 {% block body_class %}page-mine{% endblock %}
 {% block content %}
@@ -26,6 +27,7 @@
   <span class="st {{ task.status }}"><i></i>{{ ball }}</span>{{ due(task) }}</a>
 {%- endmacro %}
 <div class="wrap mine">
+  {{ tabs('mine', 'tasks') }}
   <header class="mine-head">
     <div><span class="label">我的任务</span><div class="bigrow"><b class="big num">{{ groups.yours|length }}</b><span>件事轮到你</span></div></div>
     <a class="btn btn-line" href="{{ url_for('index') }}">{{ icon('compass') }}去发现找任务</a>

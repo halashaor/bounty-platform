@@ -52,15 +52,25 @@
     return element.animate(frames, {duration: 300, easing: A, fill: 'none', ...options});
   }
 
+  /* ---------- 头像菜单：点外面或按 Esc 收起 ---------- */
+  const meBox = document.querySelector('.me-box');
+  if (meBox) {
+    document.addEventListener('click', event => { if (meBox.open && !meBox.contains(event.target)) meBox.open = false; });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && meBox.open) { meBox.open = false; meBox.querySelector('summary').focus(); }
+    });
+  }
+
   /* ---------- 声音：Web Audio 现场合成，默认关闭 ---------- */
   let soundOn = store.get('bounty-sound') === 'on';
   const soundToggle = document.querySelector('[data-sound-toggle]');
-  const mutedIcon = soundToggle?.innerHTML;
+  const soundIcon = soundToggle?.querySelector('[data-icon]') || soundToggle;   // 头像菜单里的那一行只换图标，不换字
+  const mutedIcon = soundIcon?.innerHTML;
   function syncSound() {
     if (!soundToggle) return;
     soundToggle.setAttribute('aria-pressed', String(soundOn));
     soundToggle.title = `音效：${soundOn ? '开' : '关'}`;
-    soundToggle.innerHTML = soundOn
+    soundIcon.innerHTML = soundOn
       ? '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 10v4h3l4 3.5v-11L8 10z"/><path d="M15.5 9.5a3.5 3.5 0 0 1 0 5M18 7a7 7 0 0 1 0 10"/></svg>'
       : mutedIcon;
   }

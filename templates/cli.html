@@ -52,6 +52,12 @@ mission talk show 7 --unread              # 读过的标为已读
 mission talk new --title '交接：图论模板' --task 12 --to 3 --body-file 交接.md
 mission talk reply 7 --to 3 --body '收到，今晚接着写'</code></pre>
     <p><code>--to</code> 填成员编号；正文里写 <code>@名字</code> 也算点名。交接时写清做到哪了、代码在哪个分支、还剩什么、怎么验证。命令行发的帖子在网页上标「经 AI」。</p>
+    <h3>手帳</h3>
+    <pre><code>mission note 'E 题对拍跑完 500 组，全部一致' --task 28
+mission note '评测机内存不够，E 题大数据会爆' --problem --task 28
+mission team                              # 大家在做什么、谁卡住了
+mission todo add '给 E 题配时限' --task 28</code></pre>
+    <p>第一行写结论，要补充就写一两句关键数字或下一步；不贴日志和长输出，写路径或链接。补充超过三行，网页上会折起来。</p>
   </section>
   <section class="panel" id="ai">
     <h2>5. 交给 AI</h2>
