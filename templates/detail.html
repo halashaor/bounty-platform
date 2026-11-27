@@ -3,6 +3,7 @@
 {% from 'components/medal.html' import medal %}
 {% from 'components/ui.html' import ava, csrf, team_emblem %}
 {% from 'components/team.html' import seats, crew_text, crew_art %}
+{% from 'components/notes.html' import entry %}
 {% block title %}{{ task.title }} · 結 YUI{% endblock %}
 {% block body_class %}page-detail{% endblock %}
 {% block content %}
@@ -124,6 +125,14 @@
           </form>
         </details>
         {% endif %}
+      </section>
+      {% endif %}
+
+      {% set progress = task_progress(task.id) %}
+      {% if progress[0] or member %}
+      <section class="tprog panel" id="progress"><h2 class="sec">进展<span>{{ progress[0]|length }}</span>{% if member %}<a class="tprog-add" href="{{ url_for('notes.mine', task=task.id) }}#jot">{{ icon('plus') }}记一笔</a>{% endif %}</h2>
+        {% if progress[0] %}<ol class="ents with-who">{% for note in progress[0] %}{{ entry(note, who=true, show_task=false, stamp='date') }}{% endfor %}</ol>
+        {% else %}<p class="log-empty">还没有人记。有进展或者卡住了，在手帳里记一笔，挂上这个任务就会出现在这里。</p>{% endif %}
       </section>
       {% endif %}
 

@@ -52,16 +52,38 @@ img,svg{max-width:100%}
 .icon-btn svg{width:20px;height:20px}
 .icon-btn[aria-pressed="true"]{color:var(--ink);border-color:var(--ink)}
 .icon-btn:disabled{opacity:.45;cursor:not-allowed}
-.mailbox b{position:absolute;top:-4px;right:-4px;font:800 11px/18px var(--num);min-width:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;box-shadow:0 0 0 2px #fff}
-.mailbox.has-mail{color:var(--ink);border-color:var(--ink)}
-.mailbox.has-mail svg{animation:mail-bob 2.4s var(--arrive) infinite}
-@keyframes mail-bob{0%,70%,100%{transform:none}76%{transform:translateY(-4px) rotate(-8deg)}84%{transform:translateY(0) rotate(5deg)}90%{transform:rotate(-2deg)}}
-.account{display:flex;align-items:center;gap:6px;height:40px;padding:0 4px 0 4px;border:1px solid var(--line);border-radius:999px;font-weight:700;font-size:13px;background:var(--paper)}
-.me-chip{display:flex;align-items:center;gap:8px;padding-right:4px}
 .lv{display:inline-flex;align-items:center;height:30px;padding:0 10px;border-radius:999px;background:var(--ink);color:#fff;font:800 12px var(--num);letter-spacing:.02em}
-.account form{display:contents}
-.account button{border:0;background:var(--ground);color:var(--sub);font-size:12px;font-weight:700;height:30px;padding:0 12px;border-radius:999px;cursor:pointer}
-.account button:hover{color:var(--ink)}
+/* 只有等你处理的事显示数字，其余只亮一个小点 */
+.ndot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red)}
+.ndot.gold{background:var(--yellow)}
+.nav .ndot{align-self:flex-start;margin:9px 0 0 -3px}
+.timeseg .dot-n{font:700 11px/18px var(--num);min-width:18px;padding:0 5px;text-align:center;border-radius:9px;background:var(--red);color:#fff}
+.timeseg .ndot{margin-left:-2px}
+.section-tabs{justify-self:start}
+/* 头像菜单：标签管理、命令行、音效、动效、退出都收在这里 */
+.me-box{position:relative}
+.me-btn{display:flex;align-items:center;gap:8px;height:40px;padding:0 10px 0 4px;border:1px solid var(--line);border-radius:999px;background:var(--paper);font-weight:800;font-size:13px;cursor:pointer;list-style:none;user-select:none;transition:border-color 160ms}
+.me-btn::-webkit-details-marker{display:none}
+.me-btn:hover,.me-box[open] .me-btn{border-color:var(--line-2)}
+.me-btn .icon{width:16px;height:16px;color:var(--faint);transition:transform 200ms var(--arrive)}
+.me-box[open] .me-btn .icon{transform:rotate(180deg)}
+.me-menu{position:absolute;top:calc(100% + 8px);right:0;z-index:50;width:264px;padding:8px;border-radius:18px;background:var(--paper);box-shadow:0 0 0 1px var(--line),0 20px 44px -12px rgba(27,29,42,.32);transform-origin:top right;animation:menu-in 220ms var(--pop) both}
+@keyframes menu-in{from{opacity:0;transform:translateY(-6px) scale(.97)}}
+.me-head{display:flex;align-items:center;gap:12px;margin-bottom:6px;padding:10px 10px 12px;border-bottom:1px solid var(--line)}
+.me-head .ava{width:36px;height:36px;font-size:14px}
+.me-head b{display:block;font-size:14.5px}
+.me-head small{display:block;font-size:12px;font-weight:600;color:var(--sub)}
+.me-menu>a:not(.me-head),.me-row,.me-out{display:flex;align-items:center;gap:10px;width:100%;height:40px;padding:0 10px;border:0;border-radius:10px;background:none;font-size:13.5px;font-weight:700;color:var(--ink-2);text-align:left;cursor:pointer}
+.me-menu>a:not(.me-head):hover,.me-row:hover,.me-out:hover{background:var(--ground)}
+.me-menu .icon{width:18px;height:18px;color:var(--sub)}
+.me-row [data-icon]{display:inline-grid}
+.me-row .sw{position:relative;margin-left:auto;width:36px;height:21px;border-radius:999px;background:var(--line-2);transition:background 160ms}
+.me-row .sw i{position:absolute;top:3px;left:3px;width:15px;height:15px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform 220ms var(--pop)}
+[data-sound-toggle][aria-pressed="true"] .sw,.motion-row[aria-pressed="false"] .sw{background:var(--ink)}
+[data-sound-toggle][aria-pressed="true"] .sw i,.motion-row[aria-pressed="false"] .sw i{transform:translateX(15px)}
+.me-row:disabled{opacity:.5;cursor:not-allowed}
+.me-menu form{display:block;margin-top:6px;padding-top:6px;border-top:1px solid var(--line)}
+.me-out{color:var(--sub)}
 .tabbar{display:none}
 
 /* ---------- 通用部件 ---------- */
@@ -259,12 +281,11 @@ html[data-motion="off"] *,html[data-motion="off"] *::before,html[data-motion="of
   body{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
   .top-in{gap:8px}
   .top-right{gap:5px;min-width:0}
-  .top-right .account{flex:none}
-  .account button{white-space:nowrap;padding:0 9px}
-  .nav,.top-right .btn-new,.me-chip .name{display:none}
+  .nav,.top-right .btn-new,.me-btn .name{display:none}
   .icon-btn{width:36px;height:36px}
-  .account{height:36px}
-  .lv{height:26px}
+  .me-btn{height:36px;padding:0 6px 0 3px}
+  .lv{height:28px}
+  .tabbar .ndot{position:absolute;top:2px;left:calc(50% + 8px)}
   .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-template-columns:repeat(5,1fr);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));background:rgba(255,255,255,.96);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line)}
   .tabbar a{position:relative;display:grid;justify-items:center;gap:2px;padding:4px 0;font-size:11px;font-weight:700;color:var(--faint)}
   .tabbar a svg{width:24px;height:24px}

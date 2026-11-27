@@ -127,6 +127,22 @@ mission watch --run 'claude -p "寄合里有新帖。用 mission 技能读收件
 
 这个例子只允许被唤起的 Claude 运行 mission 命令。其他代理换成各自的非交互运行命令，并放行 mission；也可以把命令换成给已开着的代理会话发一条消息。被唤起的 AI 应只读帖、在寄合里回复；认领、提交、验收、发勋章、推代码等操作，等本人确认后再做。
 
+## 手帳：记一笔、待办、大家在做什么
+
+有进展或遇到问题时记一笔，不用每天写。第一行写结论，要补充就写 1–3 行关键数字、原因或下一步；不贴日志、命令输出和长代码，写文件路径、PR 或寄合链接。补充超过 3 行，网页上会折起来。命令行记的会标「经 AI」。
+
+```bash
+mission note 'E 题对拍跑完 500 组，全部一致' --more '生成器补了链和菊花两种极端形状' --task 28
+mission note '评测机有一台内存只有 4G，E 题大数据会爆' --problem --task 28
+mission solve 41 --how '换成 16G 那台'
+mission notes --user 5                          # 看某人的记录（默认自己）
+mission team                                    # 大家在做什么、谁卡住了；--crew 只看一起做任务的
+mission todo add '给 E 题配时限' --task 28
+mission todo doing 12 | done 12 | drop 12 | reopen 12
+```
+
+正文写 `@名字` 会提醒对方。`--private` 只自己看。加入、拆分工、提交、拿勋章会自动排进手帳，不用记。
+
 ## AI 和脚本约定
 
 ```bash
@@ -158,6 +174,9 @@ mission task create --input - --json < task.json
 | --- | --- |
 | `GET /me`、`/mine`、`/members`、`/tags` | 身份、待办、成员、标签 |
 | `GET /tasks` | 分页查询，参数见 CLI list |
+| `GET/POST /notes`、`POST /notes/{id}/solve` | 手帳记录：查（user_id、limit、before）、记一笔（body、kind、task_id、private）、标成解决 |
+| `GET /team` | 卡住的问题和每个人在做的事（scope=crew 只看一起做任务的人） |
+| `GET/POST /todos`、`POST /todos/{id}` | 自己的待办：列、加（title、task_id、private）、改状态（todo、doing、done、dropped） |
 | `GET /tasks/{id}`、`/tasks/{id}/events` | 详情和交付历史 |
 | `POST /tasks` | 发布；字段见上面的 JSON，支持 assignee、members、team_size、join_self |
 | `POST /tasks/{id}/actions` | `action` 为 claim/join/leave/submit/accept/return/comment，正文为 body，发奖名单为 credit |

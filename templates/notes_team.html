@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% from 'components/icon.html' import icon %}
+{% from 'components/ui.html' import ava %}
+{% from 'components/sections.html' import tabs with context %}
+{% block title %}手帳 · 大家 · 結 YUI{% endblock %}
+{% block body_class %}page-notes{% endblock %}
+{% block content %}
+<div class="wrap notes">
+  {{ tabs('team', 'notes') }}<h1 class="sr-only">大家的手帳</h1>
+
+  {% if data.stuck %}
+  <section class="stuck panel" aria-labelledby="stuck-title"><h2 id="stuck-title">卡住了</h2>
+    <ul>{% for note in data.stuck %}
+      <li>{{ ava(note.user_name, note.user_id) }}
+        <div><a class="st-h" href="{{ url_for('notes.go', note_id=note.id) }}">{{ note.head }}</a>
+          <p class="st-m"><b>{{ note.user_name }}</b>{% if note.task_title %} · {{ note.task_title }}{% endif %} · {{ note.created_at|date }}</p></div>
+        {% if note.spawned_task_id %}<a class="mini dark" href="{{ url_for('detail', task_id=note.spawned_task_id) }}">去看 #{{ note.spawned_task_id }}</a>
+        {% else %}<a class="mini" href="{{ url_for('talk.new', task=note.task_id or none) }}">{{ icon('talk') }}寄合</a>{% endif %}
+      </li>{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <nav class="timeseg sub" aria-label="范围">
+    <a href="{{ url_for('notes.everyone') }}" {% if not crew_only %}aria-current="page"{% endif %}>全部</a>
+    <a href="{{ url_for('notes.everyone', scope='crew') }}" {% if crew_only %}aria-current="page"{% endif %}>一起做的</a>
+  </nav>
+
+  {% if data.people %}
+  <div class="pgrid">
+    {% for p in data.people %}
+    <article class="pcard panel">
+      <a class="cover" href="{{ url_for('notes.person', user_id=p.id) }}" aria-label="看 {{ p.name }} 的手帳"></a>
+      <div class="pcard-h">{{ ava(p.name, p.id) }}<div><b>{{ p.name }}</b><p>{{ p.ago or '' }}</p></div>
+        {% if p.away %}<span class="away{{ ' night' if p.away.night }}">{{ p.away.time }}<small>{{ '那边深夜' if p.away.night else '那边' }}</small></span>{% endif %}</div>
+      {% if p.doing %}<ul class="pdoing">{% for t in p.doing[:3] %}<li><i></i><span><b>{{ t.title }}</b>{% if t.now %}<small>{{ t.now }}</small>{% endif %}</span></li>{% endfor %}
+        {% if p.doing|length > 3 %}<li class="more-n">还有 {{ p.doing|length - 3 }} 件</li>{% endif %}</ul>{% endif %}
+      {% if p.last %}<p class="plast"><span>{{ p.last.head }}</span><time>{{ p.last.created_at|md }}</time></p>{% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty panel"><span>{{ '一起做任务的人最近都没有动静。' if crew_only else '大家最近都没有动静。' }}</span></div>
+  {% endif %}
+
+  {% if data.quiet %}
+  <p class="quiet">最近没记：{% for p in data.quiet %}<a href="{{ url_for('notes.person', user_id=p.id) }}">{{ ava(p.name, p.id) }}{{ p.name }}</a>，在做「{{ p.doing[0].title }}」{{ '；' if not loop.last }}{% endfor %}</p>
+  {% endif %}
+</div>
+{% endblock %}

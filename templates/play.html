@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'components/sections.html' import tabs with context %}
 {% from 'components/icon.html' import icon %}
 {% from 'components/ui.html' import hanko %}
 {% from 'components/blocks.html' import build_svg, part_icon %}
@@ -11,6 +12,7 @@
 {% set parts_all = board|selectattr('kind', 'equalto', 'part')|list %}
 {% set next_up = board|rejectattr('open')|list %}
 <div class="wrap play">
+  {{ tabs('honors', 'play') }}
   <section class="play-hero">
     <div class="play-hero-text">
       <span class="case-label">縁側</span>

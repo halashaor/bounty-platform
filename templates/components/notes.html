@@ -1,0 +1,74 @@
+{# 手帳的记录：进展 = 绿点，问题 = 红圈，解决了 = 绿勾，任务动态 = 灰色小方块。第一行是结论，补充超过三行就折起来。 #}
+{% from 'components/icon.html' import icon %}
+{% from 'components/ui.html' import ava, csrf %}
+{% from 'components/medal.html' import medal %}
+
+{% macro entry(note, who=false, show_task=true, stamp='hm', fresh=none, solved=none) -%}
+{%- set problem = note.kind == 'problem' -%}
+{%- set cls = 'solved' if problem and note.solved else ('prob open' if problem else 'prog') -%}
+<li class="ent {{ cls }}{{ ' new' if fresh == note.id }}{{ ' just' if solved == note.id }}" id="n{{ note.id }}">
+  <i class="node" aria-hidden="true"></i>
+  <div class="ent-b">
+    <div class="ent-m">
+      {%- if who %}{{ ava(note.user_name, note.user_id) }}<a class="who" href="{{ url_for('notes.person', user_id=note.user_id) }}">{{ note.user_name }}</a>{% endif -%}
+      {%- if problem and not note.solved %}<b class="k">问题</b>{% endif -%}
+      <time datetime="{{ note.created_at }}">{{ note.created_at|hm if stamp == 'hm' else note.created_at|date }}</time>
+      {%- if show_task and note.task_id %}<a class="tlink" href="{{ url_for('detail', task_id=note.task_id) }}">{{ note.task_title }}</a>{% endif -%}
+      {%- if note.ai %}<em class="ai-tag">经 AI</em>{% endif -%}
+      {%- if note.private %}<span class="lockmark">{{ icon('lock') }}只自己看</span>{% endif -%}
+      {%- if note.mine %}
+      <details class="ent-more">
+        <summary aria-label="改这条记录">{{ icon('dots') }}</summary>
+        <div class="ent-pop">
+          <form method="post" action="{{ url_for('notes.change', note_id=note.id) }}">{{ csrf() }}
+            <textarea name="body" required rows="4" aria-label="改记录">{{ note.body }}</textarea>
+            <button class="mini dark">保存</button></form>
+          <form method="post" action="{{ url_for('notes.hide', note_id=note.id) }}">{{ csrf() }}
+            <input type="hidden" name="private" value="{{ '0' if note.private else '1' }}">
+            <button class="mini ghost">{{ icon('lock') }}{{ '改成大家都能看' if note.private else '改成只自己看' }}</button></form>
+        </div>
+      </details>
+      {%- endif %}
+    </div>
+    <p class="ent-h">{{ note|note_head }}</p>
+    {% if note.more %}<div class="ent-d" data-fold>{{ note|note_body }}</div>{% endif %}
+    {% if problem and note.solved %}
+    <p class="solve">{{ icon('check') }}<span>{% if note.solved_name %}<b>{{ note.solved_name }}</b> {% endif %}{{ note.solution or '解决了' }}</span></p>
+    {% if solved == note.id %}<span class="sburst" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>{% endif %}
+    {% elif problem %}
+    <div class="ent-act">
+      {% if note.spawned_task_id %}<span class="spawn">{{ icon('flag') }}发成了任务 <a href="{{ url_for('detail', task_id=note.spawned_task_id) }}">#{{ note.spawned_task_id }} {{ note.spawned_title }}</a> · {{ '有人在做' if note.spawned_status in ('active', 'review') else '等人接' }}</span>
+      {% elif note.mine and not note.private %}<a class="mini ghost" href="{{ url_for('new_task', title=note.head[:120], description=note.more or note.head, from_note=note.id) }}">{{ icon('flag') }}发成任务</a>{% endif %}
+      <details class="solve-it">
+        <summary class="mini">{{ icon('check') }}解决了</summary>
+        <form method="post" action="{{ url_for('notes.close', note_id=note.id) }}">{{ csrf() }}
+          <input name="how" maxlength="2000" placeholder="怎么解决的（可不填）" aria-label="怎么解决的">
+          <button class="mini dark">好</button></form>
+      </details>
+    </div>
+    {% endif %}
+  </div>
+</li>
+{%- endmacro %}
+
+{% macro synced(item, who=none) -%}
+<li class="ent sys"><i class="node" aria-hidden="true"></i>
+  <p class="sys-l">{% if who %}{{ ava(who.name, who.id) }}<b class="who">{{ who.name }}</b>{% endif %}<time datetime="{{ item.at }}">{{ item.at|hm }}</time>
+    {%- set all = item['items'] %}{% set shown = all[-4:] %}
+    {%- for s in shown %}{{ '；' if not loop.first }}{{ s.verb }}{{ ' ' if s.verb }}<a href="{{ url_for('detail', task_id=s.task_id) }}">{{ s.title }}</a>{{ s.tail or '' }}{% if s.medal %}{{ medal(s.medal) }}{% endif %}{% endfor %}
+    {%- if all|length > shown|length %}<span class="sys-more">，还有 {{ all|length - shown|length }} 件</span>{% endif %}</p>
+</li>
+{%- endmacro %}
+
+{% macro days(data, fresh=none, solved=none, empty='') -%}
+{% for d in data.days %}
+<section class="day">
+  <header class="day-h{{ ' today' if d.today }}"><b class="num">{{ d.num }}</b><span>{{ d.label }}</span></header>
+  <ol class="ents">
+    {% for item in d['items'] %}{% if item.type == 'note' %}{{ entry(item.note, fresh=fresh, solved=solved) }}{% else %}{{ synced(item) }}{% endif %}{% endfor %}
+  </ol>
+</section>
+{% else %}
+<p class="log-empty">{{ empty }}</p>
+{% endfor %}
+{%- endmacro %}

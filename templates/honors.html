@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'components/sections.html' import tabs with context %}
 {% from 'components/icon.html' import icon %}
 {% from 'components/medal.html' import medal %}
 {% from 'components/ui.html' import ava, plate, csrf, hanko %}
@@ -8,6 +9,7 @@
 {% block scripts %}<script src="{{ url_for('static', filename='case.js') }}" defer></script><script src="{{ url_for('static', filename='share.js') }}" defer></script>{% endblock %}
 {% block content %}
 <div class="wrap ach" {% if mailbox %}data-honor-reveal="{{ url_for('reveal_honors') }}"{% endif %}>
+  {{ tabs('honors', 'honors') }}
   {# 勋章柜：每种勋章站在自己的格子里，拿到几枚就叠几层；点一枚拿起来看（case.js），不开 JS 时展开看每一次获得 #}
   <section class="case{{ ' complete' if me.complete }}" id="case" aria-labelledby="case-title">
     <svg class="case-deco" viewBox="0 0 1200 420" preserveAspectRatio="xMaxYMin slice" aria-hidden="true">

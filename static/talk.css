@@ -68,12 +68,7 @@ html:not([data-motion="off"]) .talk-art circle:nth-of-type(3){animation-delay:18
 .talk-links a:hover b{text-decoration:underline;text-underline-offset:3px}
 .talk-links small{margin-left:auto;flex:none;font-size:12px;color:var(--faint)}
 
-/* 窄屏：导航收起后，寄合放在顶栏的图标里 */
-.talk-btn{display:none}
-.talk-btn b{position:absolute;top:-4px;right:-4px;font:800 11px/18px var(--num);min-width:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;box-shadow:0 0 0 2px #fff}
-.talk-btn.has-mail{color:var(--ink);border-color:var(--ink)}
 @media(max-width:760px){
-  .talk-btn{display:grid}
   .talk-art{display:none}
   .trow{grid-template-columns:32px minmax(0,1fr) auto;gap:2px 12px;align-items:start}
   .trow .ava{width:32px;height:32px;grid-row:span 2}

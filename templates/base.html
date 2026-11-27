@@ -25,47 +25,56 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='board.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='talk.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='notes.css') }}">
   <script type="application/json" id="block-data">{{ block_data|tojson }}</script>
   <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
   <script src="{{ url_for('static', filename='iso.js') }}" defer></script>
   <script src="{{ url_for('static', filename='board.js') }}" defer></script>
+  {% if g.user %}<script src="{{ url_for('static', filename='notes.js') }}" defer></script>{% endif %}
   {% block scripts %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
   <a class="skip" href="#main">跳到正文</a>
   {% if g.user %}
-  {% set here = request.endpoint %}
+  {% set here = request.endpoint or '' %}
+  {# 顶栏四个入口；每页属于哪个入口 #}
+  {% if here in ('mine', 'notes.mine', 'notes.at_me') %}{% set section = 'mine' %}
+  {% elif here.startswith('talk.') or here in ('notes.everyone', 'notes.person') %}{% set section = 'team' %}
+  {% elif here in ('honors', 'recap_page') or here.startswith('play') %}{% set section = 'honors' %}
+  {% elif here in ('index', 'big_list') %}{% set section = 'discover' %}
+  {% else %}{% set section = '' %}{% endif %}
+  {% set waiting = my_turn + notes_unseen %}
   <header class="top">
     <div class="top-in">
       <a class="logo" href="{{ url_for('index') }}">{{ logo() }}{{ wordmark() }}</a>
       <nav class="nav" aria-label="主导航">
-        <a href="{{ url_for('index') }}" {% if here == 'index' %}aria-current="page"{% endif %}>发现</a>
-        <a href="{{ url_for('big_list') }}" {% if here == 'big_list' %}aria-current="page"{% endif %}>大任务</a>
-        <a href="{{ url_for('mine') }}" {% if here == 'mine' %}aria-current="page"{% endif %}>我的任务{% if my_turn %}<b aria-label="{{ my_turn }} 件轮到你">{{ my_turn }}</b>{% endif %}</a>
-        <a href="{{ url_for('talk.board') }}" {% if here and here.startswith('talk.') %}aria-current="page"{% endif %}>寄合{% if talk_unread %}<b aria-label="{{ talk_unread }} 个话题有新帖">{{ talk_unread }}</b>{% endif %}</a>
-        <a href="{{ url_for('honors') }}" {% if here in ('honors', 'recap_page') %}aria-current="page"{% endif %}>成就</a>
-        <a href="{{ url_for('play') }}" {% if here and here.startswith('play') %}aria-current="page"{% endif %}>縁側{% if play_new %}<i class="new-dot" aria-label="有 {{ play_new }} 样新解锁">新</i>{% endif %}</a>
+        <a href="{{ url_for('index') }}" {% if section == 'discover' %}aria-current="page"{% endif %}>发现</a>
+        <a href="{{ url_for('mine') }}" data-waiting="{{ my_turn }}" {% if section == 'mine' %}aria-current="page"{% endif %}>我的{% if waiting %}<b aria-label="{{ waiting }} 件事等你">{{ waiting }}</b>{% endif %}</a>
+        <a href="{{ url_for('notes.everyone') }}" {% if section == 'team' %}aria-current="page"{% endif %}>大家{% if talk_unread %}<i class="ndot" aria-label="寄合有新帖"></i>{% endif %}</a>
+        <a href="{{ url_for('honors') }}" {% if section == 'honors' %}aria-current="page"{% endif %}>成就{% if mailbox or play_new %}<i class="ndot gold" aria-label="有新勋章或新解锁"></i>{% endif %}</a>
       </nav>
       <div class="top-right">
         <a class="btn btn-new" href="{{ url_for('new_task') }}">{{ icon('plus') }}发布任务</a>
-        <a class="icon-btn" href="{{ url_for('team_tags') }}" title="标签管理" aria-label="标签管理" {% if here == 'team_tags' %}aria-pressed="true"{% endif %}>{{ icon('tag') }}</a>
-        <a class="icon-btn talk-btn{{ ' has-mail' if talk_unread }}" href="{{ url_for('talk.board') }}" title="寄合" aria-label="寄合{{ '：' ~ talk_unread ~ ' 个话题有新帖' if talk_unread else '' }}" {% if here and here.startswith('talk.') %}aria-pressed="true"{% endif %}>{{ icon('talk') }}{% if talk_unread %}<b>{{ talk_unread }}</b>{% endif %}</a>
-        <a class="icon-btn mailbox{{ ' has-mail' if mailbox }}" href="{{ url_for('honors') }}" title="信箱" aria-label="信箱{{ '：' ~ mailbox ~ ' 枚新勋章待领取' if mailbox else '' }}">{{ icon('mail') }}{% if mailbox %}<b>{{ mailbox }}</b>{% endif %}</a>
-        <button type="button" class="icon-btn" data-sound-toggle aria-pressed="false" title="音效：关" aria-label="音效">{{ icon('mute') }}</button>
-        <button type="button" class="icon-btn" data-motion-toggle aria-pressed="false" title="动效：开" aria-label="动效">{{ icon('motion') }}</button>
-        <div class="account">
-          <a class="me-chip" href="{{ url_for('honors') }}" title="{{ me.name }} · {{ me.xp }} 经验"><span class="lv">Lv.{{ me.level }}</span><span class="name">{{ g.user.name }}</span></a>
-          <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf" value="{{ session.csrf }}"><button>退出</button></form>
-        </div>
+        <details class="me-box">
+          <summary class="me-btn" title="{{ g.user.name }} · Lv.{{ me.level }}"><span class="lv">Lv.{{ me.level }}</span><span class="name">{{ g.user.name }}</span>{{ icon('down') }}</summary>
+          <div class="me-menu">
+            <a class="me-head" href="{{ url_for('honors') }}">{{ ava(g.user.name, g.user.id) }}<span><b>{{ g.user.name }}</b><small>Lv.{{ me.level }} {{ me.name }} · 再 {{ me.to_next }} 经验升级</small></span></a>
+            <a href="{{ url_for('team_tags') }}">{{ icon('tag') }}标签管理</a>
+            <a href="{{ url_for('mission_cli.access') }}">{{ icon('term') }}命令行与 AI</a>
+            <button type="button" class="me-row" data-sound-toggle aria-pressed="false" title="音效：关"><span data-icon>{{ icon('mute') }}</span>音效<span class="sw" aria-hidden="true"><i></i></span></button>
+            <button type="button" class="me-row motion-row" data-motion-toggle aria-pressed="false" title="动效：开">{{ icon('motion') }}动效<span class="sw" aria-hidden="true"><i></i></span></button>
+            <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf" value="{{ session.csrf }}"><button class="me-out">退出</button></form>
+          </div>
+        </details>
       </div>
     </div>
   </header>
   <nav class="tabbar" aria-label="主导航">
-    <a href="{{ url_for('index') }}" {% if here == 'index' %}aria-current="page"{% endif %}>{{ icon('compass') }}发现</a>
-    <a href="{{ url_for('mine') }}" {% if here == 'mine' %}aria-current="page"{% endif %}>{{ icon('list') }}我的{% if my_turn %}<b>{{ my_turn }}</b>{% endif %}</a>
+    <a href="{{ url_for('index') }}" {% if section == 'discover' %}aria-current="page"{% endif %}>{{ icon('compass') }}发现</a>
+    <a href="{{ url_for('mine') }}" {% if section == 'mine' %}aria-current="page"{% endif %}>{{ icon('list') }}我的{% if waiting %}<b>{{ waiting }}</b>{% endif %}</a>
     <a class="plus-wrap" href="{{ url_for('new_task') }}" aria-label="发布任务"><span class="plus">{{ icon('plus') }}</span></a>
-    <a href="{{ url_for('honors') }}" {% if here in ('honors', 'recap_page') %}aria-current="page"{% endif %}>{{ icon('medal') }}成就</a>
-    <a href="{{ url_for('play') }}" {% if here and here.startswith('play') %}aria-current="page"{% endif %}>{{ icon('game') }}游戏{% if play_new %}<i class="new-dot">新</i>{% endif %}</a>
+    <a href="{{ url_for('notes.everyone') }}" {% if section == 'team' %}aria-current="page"{% endif %}>{{ icon('people') }}大家{% if talk_unread %}<i class="ndot" aria-label="寄合有新帖"></i>{% endif %}</a>
+    <a href="{{ url_for('honors') }}" {% if section == 'honors' %}aria-current="page"{% endif %}>{{ icon('medal') }}成就{% if mailbox or play_new %}<i class="ndot gold" aria-label="有新勋章或新解锁"></i>{% endif %}</a>
   </nav>
   {% endif %}
   <div class="notices">
@@ -76,5 +85,6 @@
   <main id="main">{% block content %}{% endblock %}</main>
   {% if g.user %}<footer class="cli-entry"><a href="{{ url_for('mission_cli.access') }}">命令行与 AI</a></footer>{% endif %}
   <div class="toasts" aria-live="polite"></div>
+  {% if g.user %}<div class="pings" aria-live="polite" data-pings="{{ url_for('notes.ping_list') }}"></div>{% endif %}
 </body>
 </html>

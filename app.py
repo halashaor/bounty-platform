@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import unquote
 from flask import Flask, abort, flash, g, redirect, render_template, render_template_string, request, session, url_for, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
-from bounty import blocks, cleanup, discover, extend, games, progress, recap, tags, talk, teams, titles, unlocks
+from bounty import blocks, cleanup, discover, extend, games, notes, progress, recap, tags, talk, teams, titles, unlocks
 from bounty.db import connect, initialize
 from bounty.honors import COLD_DAYS, EFFORT, IMPORTANCE, URGENCY, MEDALS, cold_bonus, medal_key, task_xp
 from bounty.service import (CATEGORIES, STATUSES, KINDS, MAX_INTERESTS, MAX_TEAM, TEAM_TZ, InvalidAction, act, clap,
@@ -379,6 +379,8 @@ def create_app(config=None):
             payload.pop('assignee', None)   # 表单只有多选的 members
             try:
                 task_id = create_task(app.config['DATABASE'], g.user['id'], payload, g.tz)
+                if payload.get('from_note', '').isdigit():   # 从手帳里的「问题」发出来的：问题记住这个任务
+                    notes.link_spawn(app.config['DATABASE'], g.user['id'], int(payload['from_note']), task_id)
                 if payload.get('kind') == 'team':
                     message = '大任务已发布，指定的人已经加进来了。' if payload['members'] else '大任务已发布，等大家来加入。'
                 elif len(payload['members']) == 1:
@@ -987,6 +989,7 @@ def create_app(config=None):
     from bounty.api import install as install_api
     install_api(app)
     talk.install(app)
+    notes.install(app)
     return app
 
 
