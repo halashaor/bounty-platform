@@ -13,7 +13,8 @@ def _parse(value):
 
 
 def open_tasks(db, user_id):
-    """What this user could take on right now: unclaimed small tasks, and big tasks that still have room for them."""
+    """What this user could take on right now: unclaimed small tasks, and big tasks that still have room for them.
+    Shares split off a big task are not listed here; people pick them up inside the big task."""
     return db.execute(f'''SELECT t.*,u.name owner_name,p.title big_title,
             (SELECT COUNT(*) FROM task_members m WHERE m.task_id=t.id) people
         FROM tasks t JOIN users u ON u.id=t.owner_id LEFT JOIN tasks p ON p.id=t.parent_id
@@ -78,8 +79,7 @@ def profile(db, user_id):
     texts = Counter()
     for _, grams in done_texts:
         texts.update(grams)
-    bigs = {row['task_id'] for row in db.execute('SELECT task_id FROM task_members WHERE user_id=?', (user_id,))}
-    return dict(tags=tag_weight, tag_count=tag_count, projects=project_weight, interests=set(interests), bigs=bigs,
+    return dict(tags=tag_weight, tag_count=tag_count, projects=project_weight, interests=set(interests),
                 dismissed=dismissed, done_texts=done_texts, text=texts, earned=earned_keys(db, user_id))
 
 
@@ -133,18 +133,10 @@ def recommend(db, user_id, limit=3, batch=0, lane='all', exclude=()):
                 personal = True
                 closest = max(me['done_texts'], key=lambda item: _cosine(grams, item[1]))[0]
                 reasons.append((similarity * 3, 'similar', f'和你做过的「{closest}」很像'))
-            # 4b) 你在做的大任务里拆出来的分工
-            if task['parent_id'] in me['bigs']:
-                score += 2
-                personal = True
-                reasons.append((2.5, 'crew', f'你在「{task["big_title"]}」里'))
         # 5) 人人都成立的：大任务、新项目、勋章、时机
         if task['kind'] == 'team':
             score += 0.6
             reasons.append((1.1, 'team', team_text(task)))
-        elif task['parent_id'] and task['parent_id'] not in me['bigs']:
-            score += 0.6
-            reasons.append((1.1, 'big', f'大任务「{task["big_title"]}」拆出来的一份'))
         if task['kind'] != 'team' and task['people']:   # 小任务已经有人在做：还能一起
             reasons.append((0.9, 'team', team_text(task)))
         if task['project'] and not me['projects'][task['project']] \
@@ -172,7 +164,7 @@ def recommend(db, user_id, limit=3, batch=0, lane='all', exclude=()):
             reasons.append((0.3, 'fresh', '刚刚发布'))
         reasons.append((0, 'due', due_text(left)))
         # 卡片上先说和"你"有关的理由（选了、做过、参与过、内容像）：它们最能说明为什么是你，而不是人人都成立的那句
-        mine = {'skill', 'interest', 'project', 'similar', 'crew'}
+        mine = {'skill', 'interest', 'project', 'similar'}
         reasons.sort(key=lambda reason: -(reason[0] + (1.5 if reason[1] in mine else 0)))
         # 「按你做过的」里，和你经历有关的任务排在只是"人人都适合"的任务前面
         ranked.append((lane == 'past' and not personal, -score, task['deadline'], task['id'], task,
@@ -248,7 +240,8 @@ def past_tags(db, user_id, limit=3):
 
 
 def team_feed(db, viewer_id, limit=6):
-    """Recent completions (with applause) and new tasks, newest first."""
+    """Recent completions (with applause) and new tasks, newest first. Shares split off a big task stay inside it
+    and are not announced here."""
     # 大任务一次发给好几个人：动态里写第一个人，后面「等 N 人」
     done = db.execute('''SELECT 'done' kind,e.created_at at,t.id task_id,t.title,
             (SELECT u.name FROM honors h JOIN users u ON u.id=h.user_id WHERE h.task_id=t.id ORDER BY h.user_id LIMIT 1) who,
@@ -257,11 +250,11 @@ def team_feed(db, viewer_id, limit=6):
             (SELECT COUNT(*) FROM claps c WHERE c.task_id=t.id) claps,
             EXISTS(SELECT 1 FROM claps c WHERE c.task_id=t.id AND c.user_id=?) clapped,
             EXISTS(SELECT 1 FROM honors h WHERE h.task_id=t.id AND h.user_id=?) mine
-        FROM events e JOIN tasks t ON t.id=e.task_id WHERE e.kind='accept' AND t.status='done'
+        FROM events e JOIN tasks t ON t.id=e.task_id WHERE e.kind='accept' AND t.status='done' AND t.parent_id IS NULL
         ORDER BY e.id DESC LIMIT ?''', (viewer_id, viewer_id, limit)).fetchall()
     posted = db.execute('''SELECT 'posted' kind,t.created_at at,t.id task_id,t.title,u.name who,0 others,
             t.importance || '-' || t.urgency medal_key,0 claps,0 clapped,0 mine
-        FROM tasks t JOIN users u ON u.id=t.owner_id WHERE t.status='open' ORDER BY t.id DESC LIMIT ?''', (limit,)).fetchall()
+        FROM tasks t JOIN users u ON u.id=t.owner_id WHERE t.status='open' AND t.parent_id IS NULL ORDER BY t.id DESC LIMIT ?''', (limit,)).fetchall()
     return sorted([dict(row) for row in (*done, *posted)], key=lambda row: row['at'], reverse=True)[:limit]
 
 
@@ -319,7 +312,8 @@ def my_tasks(db, user_id):
         elif task['status'] in ('active', 'review'):
             groups['waiting'].append(task)
         elif task['status'] == 'open':
-            groups['unclaimed'].append(task)
+            if not task['parent_id']:   # 拆出去还没人接的分工留在大任务里，不在这里另列
+                groups['unclaimed'].append(task)
         else:
             groups['done'].append(task)
     groups['done'] = groups['done'][:10]

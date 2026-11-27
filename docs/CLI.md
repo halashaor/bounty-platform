@@ -54,7 +54,7 @@ mission task comment 12 --body-file -
 
 `members` 返回已进入 Mission 的成员及本地业务编号，不读取身份目录里的所有账号。使用返回的编号指定成员，不猜测用户名对应的 ID。列表通过 `limit`/`offset` 分页，JSON 中 `next_offset` 为下一页起点；历史通过 `after` 分页，`next_after` 为空表示结束。任务详情只附最近 50 条历史，完整历史用 `task events` 获取。
 
-状态为 `open`、`active`、`review`、`done`。任务类型为 `solo` 或 `team`。查询还支持 `--q`、`--project`、`--owner-id`、`--assignee-id`、`--parent-id`。
+状态为 `open`、`active`、`review`、`done`。任务类型为 `solo` 或 `team`。查询还支持 `--q`、`--project`、`--owner-id`、`--assignee-id`、`--parent-id`。列表默认不含大任务拆出来的分工；用 `--parent-id` 列某个大任务的分工，按 `--owner-id`、`--assignee-id` 查时分工照常列出。
 
 ## 发布和多人协作
 

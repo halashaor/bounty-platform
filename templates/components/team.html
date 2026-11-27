@@ -44,7 +44,7 @@
   </div>
   {{ team_badge(key, item.status) }}
   <div class="pick-body">
-    <span class="kicker">{% if item.project %}{{ item.project }}<span>·</span>{% endif %}{{ '想要 ' ~ item.team_size ~ ' 人' if item.team_size else '人数不限' }}{% if item.pieces %}<span>·</span>分工 {{ item.pieces_done }}/{{ item.pieces }}{% endif %}<span>·</span>{% if item.status == 'done' %}{{ item.done_at|md }} 完成{% else %}<span class="{{ 'soon' if left[1] }}">{{ left[0] }}</span>{% endif %}</span>
+    <span class="kicker">{% if item.project %}{{ item.project }}<span>·</span>{% endif %}{{ '想要 ' ~ item.team_size ~ ' 人' if item.team_size else '人数不限' }}{% if item.status == 'done' %}{% if item.pieces_done %}<span>·</span>{{ item.pieces_done }} 份分工{% endif %}{% elif item.pieces %}<span>·</span>分工 {{ item.pieces_done }}/{{ item.pieces }}{% if item.pieces_waiting %}，{{ item.pieces_waiting }} 份等人接{% endif %}{% endif %}<span>·</span>{% if item.status == 'done' %}{{ item.done_at|md }} 完成{% else %}<span class="{{ 'soon' if left[1] }}">{{ left[0] }}</span>{% endif %}</span>
     <h3>{{ item.title }}</h3>
     <p class="goal">{{ item.description }}</p>
     <div class="pick-foot">{{ ava(item.owner_name, item.owner_id) }}<span>{{ item.owner_name }}</span><span class="xp">每人 +{{ offer_xp(item) }} 经验</span>

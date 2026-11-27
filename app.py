@@ -247,7 +247,7 @@ def create_app(config=None):
         unlock = request.args.get('unlock') == '1'
         batch, want_batch = (int(value) if value.isdigit() else 0
                              for value in (request.args.get('batch', '0'), request.args.get('wb', '0')))
-        clauses, params = [], []
+        clauses, params = ['t.parent_id IS NULL'], []   # 大任务拆出来的分工只在大任务里面列
         if scope in ('published', 'claimed'):
             if scope == 'published':
                 clauses.append('t.owner_id=?'); params.append(g.user['id'])
@@ -279,16 +279,17 @@ def create_app(config=None):
                                " ORDER BY t.status='done', t.urgency='urgent' DESC, t.deadline, t.id DESC", params).fetchall()
             if unlock:
                 tasks = [task for task in tasks if medal_key(task) not in earned]
-            counts = {row['status']: row['n'] for row in db.execute('SELECT status,COUNT(*) n FROM tasks GROUP BY status')}
+            counts = {row['status']: row['n'] for row in db.execute('SELECT status,COUNT(*) n FROM tasks WHERE parent_id IS NULL GROUP BY status')}
             counts['open'] = db.execute(f'SELECT COUNT(*) FROM tasks t WHERE {teams.JOINABLE}').fetchone()[0]
             # 筛选条从现有任务里长出来：新标签、新项目一出现就能点
             top_tags = [row['tag'] for row in db.execute('''SELECT tag,COUNT(*) n FROM task_tags JOIN tasks t ON t.id=task_id
-                WHERE t.status='open' GROUP BY tag ORDER BY n DESC,tag LIMIT 10''')]
+                WHERE t.status='open' AND t.parent_id IS NULL GROUP BY tag ORDER BY n DESC,tag LIMIT 10''')]
             projects = [row['project'] for row in db.execute('''SELECT project,MAX(created_at) latest FROM tasks
                 WHERE project IS NOT NULL GROUP BY project ORDER BY latest DESC''')]
             tags_of = discover.tags_by_task(db)
             lanes = picks_for(db, want_batch, batch)
-            hand = db.execute(f'SELECT t.* FROM tasks t WHERE {MY_TURN} ORDER BY t.deadline LIMIT 3', dict(me=g.user['id'])).fetchall()
+            hand = db.execute(f'SELECT t.* FROM tasks t WHERE {MY_TURN} AND t.parent_id IS NULL ORDER BY t.deadline LIMIT 3',
+                              dict(me=g.user['id'])).fetchall()
             big_list = teams.listing(db, g.user['id'])
             feed = discover.team_feed(db, g.user['id'])
             week = discover.week_summary(db, g.tz)

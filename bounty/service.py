@@ -204,6 +204,8 @@ def act(path, task_id, user_id, action, body='', credit=None):
         if action == 'join':
             if user_id in members:
                 raise InvalidAction('你已经在里面了。')
+            if parent and parent['status'] == 'done':
+                raise InvalidAction('大任务已经完成，这份分工不用再做了。')
             if status not in ('open', 'active') or task['deadline'] <= now():
                 raise InvalidAction('已经交上去或截止了，不再加人。')
             if task['team_size'] and len(members) >= task['team_size']:
@@ -244,8 +246,6 @@ def act(path, task_id, user_id, action, body='', credit=None):
                 bonus = cold_bonus(key) if task['cold'] else 0
                 db.executemany('INSERT INTO honors (task_id,user_id,medal_key,awarded_at,bonus) VALUES (?,?,?,?,?)',
                                [(task_id, uid, key, now(), bonus) for uid in people])
-                # 拆出去还没人接的分工：留在「发现」里，变回普通小任务
-                db.execute("UPDATE tasks SET parent_id=NULL WHERE parent_id=? AND status='open'", (task_id,))
                 db.execute("UPDATE extensions SET status='closed' WHERE task_id=? AND status='pending'", (task_id,))
             db.execute('UPDATE tasks SET status=? WHERE id=?', ('done' if action == 'accept' else 'active', task_id))
             body = body or '成果验收通过。'

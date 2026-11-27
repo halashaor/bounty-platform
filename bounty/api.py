@@ -161,6 +161,8 @@ def task_list():
     for key in ('owner_id', 'parent_id'):
         if request.args.get(key):
             clauses.append(f't.{key}=?'); values.append(integer(request.args[key], key))
+    if not any(request.args.get(key) for key in ('parent_id', 'owner_id', 'assignee_id')):
+        clauses.append('t.parent_id IS NULL')   # 浏览时不列大任务拆出来的分工；按大任务或按人查时照常列
     if request.args.get('assignee_id'):   # 谁在做（加入了的）
         clauses.append('t.id IN (SELECT task_id FROM task_members WHERE user_id=?)')
         values.append(integer(request.args['assignee_id'], 'assignee_id'))

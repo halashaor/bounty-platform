@@ -255,8 +255,8 @@ class WorkflowTest(unittest.TestCase):
         client = app.test_client()
         self.post(client, '/auth/login', {'name': '认领人', 'password': 'demo12345'})
         response = client.get('/')
-        # 发现页默认只列能接手的任务（没人做的，和还能加入的），一页 12 个
-        self.assertEqual(response.text.count('data-task='), 21)
+        # 发现页默认只列能接手的任务（没人做的，和还能加入的），一页 12 个；大任务拆出来的分工不在这里列
+        self.assertEqual(response.text.count('data-task='), 18)
         self.assertEqual(response.text.count('class="wall-zone"'), 2)
         # 演示账号「认领人」选过方向：两排推荐各三张，互不重复
         picks = response.text.split('data-lane-body="want"')[1]

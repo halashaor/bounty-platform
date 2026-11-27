@@ -247,6 +247,9 @@ html:not([data-motion="off"]) .receipt{animation:receipt-in 380ms var(--arrive) 
 .ev-tag.accept{background:var(--green);color:#fff}
 .mrow .due{justify-self:end}
 .mrow:hover .medal .m-a{animation:m-pop 420ms var(--pop) calc(var(--i) * 110ms) both}
+/* 我的任务里挂在大任务下面的分工 */
+.mrow.sub{padding-left:56px}
+.mrow.sub .medal{width:32px;height:32px}
 
 /* ================= 发布 ================= */
 .compose{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:18px;align-items:start;padding-top:24px;padding-bottom:80px}
@@ -428,6 +431,7 @@ html:not([data-motion="off"]) .compose .pc{animation:assemble 640ms var(--arrive
   .mrow{grid-template-columns:40px minmax(0,1fr) auto;gap:4px 12px;align-items:start}
   .mrow .medal{width:40px;height:40px;grid-row:span 2}
   .mrow-main p{white-space:normal}
+  .mrow.sub{padding-left:24px}
   .mrow .st{grid-column:2}
   .mrow .due{grid-column:3;grid-row:1}
   .editor{padding:22px 20px}
@@ -1344,6 +1348,7 @@ html:not([data-motion="off"]) .crew-art .wave{animation:wave-drop 560ms var(--po
 .share-main small{display:block;font-size:12px;color:var(--sub)}
 .share-main p{margin-top:2px;font-size:13px;color:var(--ink-2)}
 .share.done .share-main b{color:var(--sub)}
+.share.unneeded .share-main b,.st.unneeded{color:var(--faint)}
 .share-state{display:flex;align-items:center;justify-content:flex-end;gap:10px}
 .share-state .who{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
 .share-state .who b{display:block;font-size:13px;line-height:1.3}

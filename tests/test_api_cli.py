@@ -86,6 +86,11 @@ class APITest(Fixture):
         piece = self.call(path + '/pieces', uid=2,
                           data=dict(title='准备例题', note='图论', tag='讲解', kind='standard-normal'), status=201)
         self.assertEqual(piece['parent_id'], task['id'])
+        listed = [item['id'] for item in self.call('/tasks')['items']]      # 浏览列表不含分工
+        self.assertIn(task['id'], listed)
+        self.assertNotIn(piece['id'], listed)
+        self.assertEqual([item['id'] for item in self.call(f"/tasks?parent_id={task['id']}")['items']], [piece['id']])
+        self.assertIn(piece['id'], [item['id'] for item in self.call('/tasks?owner_id=2')['items']])
         self.call(path + '/actions', uid=2, data={'action': 'submit', 'body': '完成'})
         done = self.call(path + '/actions', data={'action': 'accept', 'credit': [2]})
         self.assertEqual(done['status'], 'done')
