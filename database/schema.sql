@@ -209,3 +209,19 @@ CREATE TABLE IF NOT EXISTS todos (
  done_at TEXT
 );
 CREATE INDEX IF NOT EXISTS todos_by_user ON todos(user_id,state);
+CREATE TABLE IF NOT EXISTS shame_pins (
+ id INTEGER PRIMARY KEY,
+ task_id INTEGER NOT NULL REFERENCES tasks(id),
+ user_id INTEGER NOT NULL REFERENCES users(id),
+ pinned_by INTEGER NOT NULL REFERENCES users(id),
+ kind TEXT NOT NULL DEFAULT 'overdue' CHECK(kind IN ('overdue','rejected','other')),
+ reason TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','lifted')),
+ lashes INTEGER NOT NULL DEFAULT 0,
+ created_at TEXT NOT NULL,
+ lifted_by INTEGER REFERENCES users(id),
+ lifted_at TEXT,
+ lift_note TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS shame_pins_by_task ON shame_pins(task_id,status);
+CREATE INDEX IF NOT EXISTS shame_pins_by_user ON shame_pins(user_id,status);

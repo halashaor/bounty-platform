@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import unquote
 from flask import Flask, abort, flash, g, redirect, render_template, render_template_string, request, session, url_for, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
-from bounty import blocks, cleanup, discover, extend, games, notes, progress, recap, tags, talk, teams, titles, unlocks
+from bounty import blocks, cleanup, discover, extend, games, notes, progress, recap, shame, tags, talk, teams, titles, unlocks
 from bounty.db import connect, initialize
 from bounty.honors import COLD_DAYS, EFFORT, IMPORTANCE, URGENCY, MEDALS, cold_bonus, medal_key, task_xp
 from bounty.service import (CATEGORIES, STATUSES, KINDS, MAX_INTERESTS, MAX_TEAM, TEAM_TZ, InvalidAction, act, clap,
@@ -888,6 +888,10 @@ def create_app(config=None):
             ext_pending = extend.pending(db, task_id)
             ext_done = extend.approved(db, task_id)
             ext_checker = extend.checker(db, task, g.user['id'])
+            shame_active = shame.active_for_task(db, task_id, g.user['id'])
+            shame_can_manage = shame.can_manage(db, task, g.user['id'])
+            shame_candidates = shame.candidates(db, task, g.user['id']) if shame_can_manage else []
+            shame_default_kind = shame.default_kind(db, task) if shame_can_manage else 'overdue'
             topics = talk.for_task(db, task_id)
             why = []
             if task['owner_id'] != g.user['id'] and task['status'] in ('open', 'active'):
@@ -907,6 +911,8 @@ def create_app(config=None):
                                credited=credited, topics=topics, ext_pending=ext_pending, ext_done=ext_done, ext_checker=ext_checker,
                                ext_ask=task['status'] == 'active' and member and not ext_checker,
                                ext_push=ext_checker and task['status'] in ('open', 'active'),
+                               shame_active=shame_active, shame_can_manage=shame_can_manage,
+                               shame_candidates=shame_candidates, shame_default_kind=shame_default_kind,
                                pieces_busy=sum(piece['status'] in ('active', 'review') for piece in pieces))
 
     @app.post('/tasks/<int:task_id>/extend/<move>')
@@ -990,6 +996,7 @@ def create_app(config=None):
     install_api(app)
     talk.install(app)
     notes.install(app)
+    shame.install(app)
     return app
 
 

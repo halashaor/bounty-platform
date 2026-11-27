@@ -4,8 +4,10 @@
 {% from 'components/ui.html' import ava, csrf, team_emblem %}
 {% from 'components/team.html' import seats, crew_text, crew_art %}
 {% from 'components/notes.html' import entry %}
+{% from 'components/shame.html' import shame_stage %}
 {% block title %}{{ task.title }} · 結 YUI{% endblock %}
 {% block body_class %}page-detail{% endblock %}
+{% block scripts %}{% if shame_active %}<script src="{{ url_for('static', filename='shame.js') }}" defer></script>{% endif %}{% endblock %}
 {% block content %}
 {% set key = medal_key(task) %}
 {% set hue = medals[key].hue %}
@@ -44,10 +46,15 @@
         <span>{{ flow_names[task.status] }}</span>
         <span>{{ task.owner_name }} 发布</span>
         {% if ext_done %}<span>延期过 {{ ext_done|length }} 次</span>{% endif %}
+        {% if shame_active %}<span>耻辱柱 {{ shame_active|length }} 人</span>{% endif %}
       </div>
     </div>
     <div class="qband-reward">{{ medal(key, 'anim', label='完成可得 ' ~ medals[key].name) }}<div><b>{{ '一起做的每个人得' if many else '完成可得' }}「{{ medals[key].name }}」</b><br><span class="xp">{{ '每人 ' if many }}+{{ offer_xp(task) }} 经验</span></div></div>
   </section>
+
+  {% if shame_active %}
+  {{ shame_stage(shame_active, g.user.id, show_task=false, next_url=url_for('detail', task_id=task.id)) }}
+  {% endif %}
 
   <ol class="flow panel" aria-label="进度">
     {% for name in order %}
@@ -282,6 +289,25 @@
           <label class="field-inline">新的截止<small>按你这里的时间填</small><input type="datetime-local" name="deadline" required></label>
           <input name="body" maxlength="200" placeholder="说一句为什么延（可不填）" aria-label="延期说明">
           <button class="btn btn-sm">{{ icon('clock') }}延期</button>
+        </form>
+      </details>
+      {% endif %}
+
+      {% if shame_can_manage and shame_candidates %}
+      <details class="add-piece shame-pin-box"{% if not shame_active %} id="shame"{% endif %}>
+        <summary>{{ icon('info') }}钉上耻辱柱</summary>
+        <form method="post" action="{{ url_for('shame.pin_task', task_id=task.id) }}">
+          {{ csrf() }}
+          {% if shame_candidates|length == 1 %}
+          <input type="hidden" name="user_id" value="{{ shame_candidates[0].id }}">
+          <p class="add-note">对象：<b>{{ shame_candidates[0].name }}</b></p>
+          {% else %}
+          <div class="chips">{% for person in shame_candidates %}<label class="chip"><input type="radio" name="user_id" value="{{ person.id }}"{% if loop.first %} checked{% endif %}>{{ ava(person.name, person.id) }}{{ person.name }}</label>{% endfor %}</div>
+          {% endif %}
+          <select name="kind" aria-label="上柱类型">{% for k, label in shame_kinds.items() %}<option value="{{ k }}"{% if k == shame_default_kind %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+          <input name="reason" required maxlength="200" placeholder="写明钉上耻辱柱的理由" aria-label="耻辱柱理由">
+          <button class="btn btn-sm shame-btn-whip">钉上耻辱柱</button>
+          <p class="add-note">钉上后所有人进这个任务页和「耻辱柱」都能看到动效，随时可以拔出钉子。</p>
         </form>
       </details>
       {% endif %}

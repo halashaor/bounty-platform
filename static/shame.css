@@ -1,0 +1,71 @@
+/* 耻辱柱展台：任务详情页与独立耻辱柱页共用。
+   使用 結 YUI 现有色彩与字体变量，不破坏顶栏和其他模块样式。 */
+.shame-card{position:relative;border-radius:24px;background:var(--ink);color:#fff;overflow:hidden;box-shadow:0 16px 40px rgba(27,29,42,.18)}
+.shame-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:15px 22px 12px;border-bottom:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(229,68,101,.16),transparent)}
+.shame-title{display:flex;align-items:center;gap:10px}
+.shame-seal{display:inline-grid;place-items:center;width:30px;height:30px;flex:none;border-radius:8px;border:2px solid var(--red);color:var(--red);font-family:'Hiragino Mincho ProN','Yu Mincho','Noto Serif CJK SC','Source Han Serif SC','Songti SC',serif;font-weight:900;font-size:16px;transform:rotate(-6deg);background:rgba(229,68,101,.12)}
+.shame-title b{display:block;font-size:15.5px;line-height:1.25;letter-spacing:.03em}
+.shame-title small{display:block;color:rgba(255,255,255,.62);font-size:12px}
+.shame-tabs{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.shame-pill{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:rgba(255,255,255,.86);font-size:12px;font-weight:700;cursor:pointer;transition:background 160ms,border-color 160ms,color 160ms}
+.shame-pill:hover{border-color:rgba(255,255,255,.5);color:#fff}
+.shame-pill.active{background:var(--red);border-color:var(--red);color:#fff}
+
+.shame-stage-wrap{position:relative;width:100%;aspect-ratio:16 / 8;min-height:320px;max-height:480px;background:#161823;cursor:pointer;overflow:hidden}
+.shame-canvas{display:block;width:100%;height:100%}
+.shame-hud{position:absolute;right:16px;bottom:14px;display:flex;align-items:center;gap:8px;pointer-events:none}
+.shame-hint{padding:5px 11px;border-radius:999px;background:rgba(255,255,255,.08);color:rgba(255,255,255,.72);font-size:11.5px;font-weight:700}
+.shame-lashes{display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:999px;background:rgba(27,29,42,.84);border:1px solid rgba(255,255,255,.16);font-size:12.5px;font-weight:800;color:#fff}
+.shame-lashes b{font-family:var(--num);color:var(--yellow);font-size:15px;min-width:18px;text-align:center}
+
+.shame-foot{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:14px;padding:15px 22px;background:rgba(255,255,255,.04);border-top:1px solid rgba(255,255,255,.08)}
+.shame-reason-box{display:flex;align-items:flex-start;gap:10px;min-width:0}
+.shame-kind{flex:none;display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--red);color:#fff;font-size:12px;font-weight:800;margin-top:2px}
+.shame-kind.rejected{background:var(--orange);color:var(--ink)}
+.shame-kind.other{background:#64697B;color:#fff}
+.shame-reason-body{min-width:0;font-size:13.5px;color:rgba(255,255,255,.94);line-height:1.55}
+.shame-reason-body p{margin:0;overflow-wrap:anywhere}
+.shame-reason-body cite{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:4px;font-style:normal;font-size:12px;color:rgba(255,255,255,.58)}
+.shame-task-link{color:var(--yellow);font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.shame-task-link:hover{color:#fff}
+.shame-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.shame-actions form{display:contents}
+.shame-btn-whip{background:var(--red);border-color:var(--red);color:#fff}
+.shame-btn-whip:hover{background:#d43455;border-color:#d43455}
+.shame-card .btn-line{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.28);color:#fff}
+.shame-card .btn-line:hover{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.55)}
+
+/* 任务详情页：时间线高亮 + 侧边栏折叠框 */
+.ev.event-shame_pin p{border-left:3px solid var(--red);background:#FDF1F4;padding:8px 12px;border-radius:0 10px 10px 0}
+.ev.event-shame_pin em{background:var(--red);color:#fff}
+.ev.event-shame_unpin em{background:var(--ink);color:#fff}
+.shame-pin-box summary{color:var(--red-text)}
+
+/* 独立耻辱柱页 */
+.shame-page{display:grid;gap:22px;padding-top:20px;padding-bottom:76px}
+.shame-page-head{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:14px}
+.shame-page-head p{margin-top:4px;color:var(--sub);font-size:13.5px}
+.shame-list{padding:22px 24px;display:grid;gap:14px}
+.shame-rows{display:grid}
+.shame-row{display:grid;grid-template-columns:32px minmax(0,1fr) auto;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.shame-row:last-child{border-bottom:0}
+.shame-row-main{min-width:0}
+.shame-row-top{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px}
+.shame-row-top b{font-size:14.5px}
+.shame-row-top a{font-size:13px;color:var(--blue-text);font-weight:700}
+.shame-row-top a:hover{text-decoration:underline;text-underline-offset:3px}
+.shame-row-main p{margin-top:3px;font-size:13.5px;color:var(--ink-2);overflow-wrap:anywhere}
+.shame-row-main small{display:block;margin-top:3px;font-size:12px;color:var(--sub)}
+.shame-row-act{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.shame-row-act form{display:contents}
+.shame-lifted{opacity:.82}
+
+@media(max-width:760px){
+  .shame-top{padding:14px 16px 10px}
+  .shame-stage-wrap{aspect-ratio:4 / 3;min-height:260px}
+  .shame-hint{display:none}
+  .shame-foot{grid-template-columns:1fr;padding:14px 16px}
+  .shame-list{padding:18px 16px}
+  .shame-row{grid-template-columns:28px minmax(0,1fr);align-items:start}
+  .shame-row-act{grid-column:2}
+}
