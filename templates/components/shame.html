@@ -1,0 +1,76 @@
+{% from 'components/ui.html' import csrf %}
+{# 耻辱柱互动展台：任务详情页和独立「耻辱柱」页共用。 #}
+{% macro shame_stage(pins, viewer_id, show_task=false, next_url='', heading='任务耻辱柱', subtitle='所有进入此页面的人都能看到') -%}
+{%- if pins -%}
+{%- set first = pins[0] -%}
+{%- set payload = [] -%}
+{%- for p in pins -%}
+  {%- set _ = payload.append({
+    'id': p.id,
+    'name': p.user_name,
+    'kind': p.kind,
+    'kind_label': p.kind_label,
+    'reason': p.reason,
+    'by': p.pinned_by_name,
+    'time': p.created_at|date,
+    'lashes': p.lashes,
+    'task_id': p.task_id,
+    'task_title': p.task_title,
+    'task_url': url_for('detail', task_id=p.task_id),
+    'can_lift': p.can_lift,
+    'lash_url': url_for('shame.lash_pin', pin_id=p.id),
+  }) -%}
+{%- endfor -%}
+<section class="shame-card" id="shame" data-shame-stage aria-label="{{ heading }}">
+  <script type="application/json" data-shame-data>{{ payload|tojson }}</script>
+  <div class="shame-top">
+    <div class="shame-title">
+      <span class="shame-seal" aria-hidden="true">耻</span>
+      <div>
+        <b>{{ heading }}</b>
+        <small>{{ subtitle }}</small>
+      </div>
+    </div>
+    {% if pins|length > 1 %}
+    <div class="shame-tabs" role="tablist" aria-label="切换在柱人物">
+      {% for p in pins %}
+      <button type="button" class="shame-pill{{ ' active' if loop.first }}" data-shame-tab="{{ loop.index0 }}">{{ p.user_name }}{% if show_task %} · {{ p.task_title[:10] }}{{ '…' if p.task_title|length > 10 }}{% else %} · {{ p.kind_label }}{% endif %}</button>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  <div class="shame-stage-wrap" data-shame-wrap title="点击画面补抽一鞭">
+    <canvas class="shame-canvas" data-shame-canvas aria-label="耻辱柱动效：{{ first.user_name }} 的旗帜被大钉子钉在耻辱柱上并被鞭子抽打"></canvas>
+    <div class="shame-hud">
+      <span class="shame-hint">点击画面补抽一鞭</span>
+      <span class="shame-lashes">已抽打 <b data-shame-count>{{ first.lashes }}</b> 鞭</span>
+    </div>
+  </div>
+  <div class="shame-foot">
+    <div class="shame-reason-box">
+      <span class="shame-kind{{ '' if first.kind == 'overdue' else ' ' ~ first.kind }}" data-shame-kind>{{ first.kind_label }}</span>
+      <div class="shame-reason-body">
+        <p data-shame-reason>「{{ first.reason }}」</p>
+        <cite>
+          <span data-shame-meta>由 {{ first.pinned_by_name }} 钉上耻辱柱 · {{ first.created_at|date }}</span>
+          {% if show_task %}<a class="shame-task-link" data-shame-task href="{{ url_for('detail', task_id=first.task_id) }}">任务：{{ first.task_title }}</a>{% endif %}
+        </cite>
+      </div>
+    </div>
+    <div class="shame-actions">
+      <button type="button" class="btn btn-sm shame-btn-whip" data-shame-whip>帮忙抽一鞭</button>
+      <button type="button" class="btn btn-line btn-sm" data-shame-replay>重播钉柱</button>
+      {% for p in pins %}
+      {% if p.can_lift %}
+      <form method="post" action="{{ url_for('shame.lift_pin', pin_id=p.id) }}" data-shame-lift-form="{{ loop.index0 }}"{% if not loop.first %} hidden{% endif %}>
+        {{ csrf() }}
+        {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+        <button class="btn btn-line btn-sm">拔出钉子</button>
+      </form>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{%- endif -%}
+{%- endmacro %}

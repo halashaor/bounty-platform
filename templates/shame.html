@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% from 'components/ui.html' import ava, csrf %}
+{% from 'components/sections.html' import tabs with context %}
+{% from 'components/shame.html' import shame_stage %}
+{% block title %}耻辱柱 · 結 YUI{% endblock %}
+{% block body_class %}page-shame{% endblock %}
+{% block scripts %}{% if active %}<script src="{{ url_for('static', filename='shame.js') }}" defer></script>{% endif %}{% endblock %}
+{% block content %}
+<div class="wrap shame-page">
+  {{ tabs('team', 'shame') }}
+  <header class="shame-page-head">
+    <div>
+      <span class="label">耻辱柱</span>
+      <div class="bigrow"><b class="big num">{{ active|length }}</b><span>人正在柱上</span></div>
+      <p>发布者在任务页写明理由即可把接了任务的人钉上来，随时可以拔出钉子。</p>
+    </div>
+  </header>
+
+  {% if active %}
+  {{ shame_stage(active, g.user.id, show_task=true, next_url=url_for('shame.board'), heading='全队耻辱柱', subtitle='点上方名字可切换围观，点画面可帮忙抽一鞭') }}
+
+  <section class="shame-list panel" aria-labelledby="active-shame-title">
+    <h2 class="sec" id="active-shame-title">当前在柱名单<span>{{ active|length }}</span></h2>
+    <ol class="shame-rows">
+      {% for p in active %}
+      <li class="shame-row">
+        {{ ava(p.user_name, p.user_id) }}
+        <div class="shame-row-main">
+          <div class="shame-row-top">
+            <b>{{ p.user_name }}</b>
+            <span class="shame-kind{{ '' if p.kind == 'overdue' else ' ' ~ p.kind }}">{{ p.kind_label }}</span>
+            <a href="{{ url_for('detail', task_id=p.task_id) }}">{{ p.task_title }}</a>
+          </div>
+          <p>「{{ p.reason }}」</p>
+          <small>由 {{ p.pinned_by_name }} 钉于 {{ p.created_at|date }} · 已被抽打 {{ p.lashes }} 鞭</small>
+        </div>
+        <div class="shame-row-act">
+          <a class="btn btn-line btn-sm" href="{{ url_for('detail', task_id=p.task_id) }}#shame">看任务</a>
+          {% if p.can_lift %}
+          <form method="post" action="{{ url_for('shame.lift_pin', pin_id=p.id) }}">
+            {{ csrf() }}
+            <input type="hidden" name="next" value="{{ url_for('shame.board') }}">
+            <button class="btn btn-sm">拔出钉子</button>
+          </form>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+  {% else %}
+  <div class="empty panel">
+    <b>现在柱子上干干净净</b>
+    <span>大家都在好好交活。发布者可在具体任务页把人钉上耻辱柱。</span>
+  </div>
+  {% endif %}
+
+  {% if lifted %}
+  <section class="shame-list panel shame-lifted" aria-labelledby="lifted-shame-title">
+    <h2 class="sec" id="lifted-shame-title">最近已拔出<span>{{ lifted|length }}</span><small>留作纪念，不再示众抽打</small></h2>
+    <ol class="shame-rows">
+      {% for p in lifted %}
+      <li class="shame-row">
+        {{ ava(p.user_name, p.user_id) }}
+        <div class="shame-row-main">
+          <div class="shame-row-top">
+            <b>{{ p.user_name }}</b>
+            <span class="tag">{{ p.kind_label }}</span>
+            <a href="{{ url_for('detail', task_id=p.task_id) }}">{{ p.task_title }}</a>
+          </div>
+          <p>上柱理由：「{{ p.reason }}」{% if p.lift_note %} · 拔出说明：{{ p.lift_note }}{% endif %}</p>
+          <small>{{ p.pinned_by_name }} 钉于 {{ p.created_at|date }} · {{ p.lifted_by_name or p.pinned_by_name }} 于 {{ p.lifted_at|date }} 拔出 · 共挨了 {{ p.lashes }} 鞭</small>
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

@@ -15,7 +15,7 @@ TEAM_TZ = timezone(timedelta(hours=float(os.environ.get('BOUNTY_TZ_OFFSET', '8')
 STATUSES = {'open': '待认领', 'active': '进行中', 'review': '待验收', 'done': '已完成'}
 KINDS = {'claim': '认领任务', 'submit': '提交成果', 'accept': '验收通过', 'return': '退回修改', 'comment': '讨论', 'settle': '历史结算记录',
          'join': '加入', 'leave': '退出', 'split': '拆出分工', 'extend_ask': '申请延期', 'extend': '延期',
-         'extend_no': '没同意延期', 'assign': '指定'}
+         'extend_no': '没同意延期', 'assign': '指定', 'shame_pin': '钉上耻辱柱', 'shame_unpin': '拔出耻辱柱'}
 # 谁在做都记在 task_members：小任务谁看到了想做就加入，不限人数；大任务也是加入，可以限人数（在这个范围里），
 # 还能拆出分工。一起做的任何一个人都能交，发布者验收时选给谁发勋章
 MAX_TEAM = 20
