@@ -113,11 +113,15 @@ class TeamTaskTest(unittest.TestCase):
             self.assertEqual(got, {1: 'major-normal', 2: 'major-normal'})
             self.assertEqual(progress.person_progress(db, 2)['xp'], 80)
             self.assertEqual(progress.person_progress(db, 3)['xp'], 0)
-            self.assertIsNone(self.row(spare)['parent_id'])    # 没人接的分工变回普通小任务
+            self.assertEqual(self.row(spare)['parent_id'], task)   # 没人接的分工留在大任务里
             self.assertEqual(titles.counts(db, 2)['together'], 1)
             self.assertEqual(titles.counts(db, 1)['captain'], 1)
             self.assertIn('part:knot', unlocks.unlocked(db, 2))
             self.assertNotIn('part:knot', unlocks.unlocked(db, 3))
+        with self.assertRaisesRegex(InvalidAction, '不用再做'):   # 大任务完成了，剩下的分工不再接
+            act(self.path, spare, 4, 'join')
+        self.assertIn('不用做了', self.clients[3].get(f'/tasks/{task}').text)
+        self.assertIn('不用做了', self.clients[3].get(f'/tasks/{spare}').text)
         with self.assertRaises(InvalidAction):          # 拿了勋章的人不能给自己鼓掌
             clap(self.path, task, 2)
         self.assertEqual(clap(self.path, task, 4), 1)
@@ -149,9 +153,14 @@ class TeamTaskTest(unittest.TestCase):
         self.assertIn('提交成果', page)
         self.assertIn('拆出一份分工', page)
         self.post(ann, f'/tasks/{task}/split', {'title': '造数据', 'tag': '数据', 'kind': 'standard-normal'})
-        self.assertIn('class="bigtag"', bob.get('/').text)      # 拆出来的分工在发现里写着属于哪个大任务
+        self.assertNotIn('/tasks/2"', bob.get('/').text)         # 分工不出现在发现里，只在大任务里面
+        self.assertIn('/tasks/2"', bob.get(f'/tasks/{task}').text)
         self.assertIn('class="big-crumb"', bob.get('/tasks/2').text)
         self.assertIn('你们 2 人在做', ann.get('/mine').text)
+        self.post(bob, '/tasks/2/join', {})
+        self.assertIn('class="mrow sub"', bob.get('/mine').text)  # 我的任务里挂在大任务下面
+        self.assertNotIn('/tasks/2"', bob.get('/').text)         # 主页「手上的」也不列分工
+        self.post(bob, '/tasks/2/leave', {})                     # 分工在做时大任务交不了，先退出
         self.post(ann, f'/tasks/{task}/submit', {'body': '办完了'})
         accept = owner.get(f'/tasks/{task}').text
         self.assertIn('name="credit"', accept)
@@ -163,7 +172,7 @@ class TeamTaskTest(unittest.TestCase):
             self.assertEqual(db.execute('SELECT COUNT(*) FROM honors WHERE task_id=?', (task,)).fetchone()[0], 2)
         self.assertIn('一起完成的', ann.get('/big').text)
 
-    def test_recommendations_show_team_tasks_and_crew_shares(self):
+    def test_recommendations_show_team_tasks_but_not_their_shares(self):
         task = create_task(self.path, 1, self.data)
         with connect(self.path) as db:
             picks = {pick['task']['id']: pick['ranked'] for pick in discover.recommend(db, 2, limit=10)}
@@ -173,7 +182,9 @@ class TeamTaskTest(unittest.TestCase):
         with connect(self.path) as db:
             picks = {pick['task']['id']: pick['ranked'] for pick in discover.recommend(db, 2, limit=10, lane='past')}
             self.assertNotIn(task, picks)               # 已经在里面了，不再推荐
-            self.assertEqual(picks[piece][0], ('crew', '你在「办好周六模拟赛」里'))
+            self.assertNotIn(piece, picks)              # 分工在大任务里面接，不进推荐
+            self.assertNotIn(piece, [pick['task']['id'] for pick in discover.recommend(db, 3, limit=10)])
+            self.assertNotIn(piece, [row['task_id'] for row in discover.team_feed(db, 3, limit=20)])
 
 
 class TeamMigrationTest(unittest.TestCase):

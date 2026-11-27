@@ -10,9 +10,10 @@ from .service import InvalidAction, insert_task, now, parse_deadline
 
 MAX_PIECES = 30
 NOTE_LIMIT = 200
-# 还能接手的任务（表别名 t）：没人做的，或者在做、人还没满的（小任务不限人数，大任务可能限）
-JOINABLE = '''(t.status='open' OR (t.status='active' AND (t.team_size IS NULL
-    OR (SELECT COUNT(*) FROM task_members m WHERE m.task_id=t.id) < t.team_size)))'''
+# 「发现」里还能接手的任务（表别名 t）：没人做的，或者在做、人还没满的（小任务不限人数，大任务可能限）。
+# 大任务拆出来的分工不算：它们只在大任务里面接。
+JOINABLE = '''(t.parent_id IS NULL AND (t.status='open' OR (t.status='active' AND (t.team_size IS NULL
+    OR (SELECT COUNT(*) FROM task_members m WHERE m.task_id=t.id) < t.team_size))))'''
 
 
 def split(path, task_id, user_id, row, tz=None):
@@ -64,12 +65,13 @@ def members_by_task(db, task_ids):
 
 
 def share_counts(db, task_ids):
-    """(finished, all) shares split off each team task."""
-    counts = {task_id: (0, 0) for task_id in task_ids}
+    """(finished, all, still waiting for someone) shares split off each team task."""
+    counts = {task_id: (0, 0, 0) for task_id in task_ids}
     if task_ids:
-        for row in db.execute(f'''SELECT parent_id,SUM(status='done') done,COUNT(*) total FROM tasks
-                WHERE parent_id IN ({','.join('?' * len(task_ids))}) GROUP BY parent_id''', list(task_ids)):
-            counts[row['parent_id']] = (row['done'], row['total'])
+        for row in db.execute(f'''SELECT parent_id,SUM(status='done') done,COUNT(*) total,
+                SUM(status='open' AND deadline>?) waiting FROM tasks
+                WHERE parent_id IN ({','.join('?' * len(task_ids))}) GROUP BY parent_id''', [now(), *task_ids]):
+            counts[row['parent_id']] = (row['done'], row['total'], row['waiting'])
     return counts
 
 
@@ -90,7 +92,7 @@ def listing(db, viewer_id, statuses=('open', 'active', 'review')):
         left = None if row['team_size'] is None else max(row['team_size'] - len(people), 0)
         items.append(dict(row, members=people, mine=row['owner_id'] == viewer_id, left=left,
                           open_seat=row['status'] in ('open', 'active') and left != 0 and row['deadline'] > now(),
-                          pieces_done=shares[row['id']][0], pieces=shares[row['id']][1]))
+                          pieces_done=shares[row['id']][0], pieces=shares[row['id']][1], pieces_waiting=shares[row['id']][2]))
     if statuses == ('done',):
         return sorted(items, key=lambda item: item['done_at'] or '', reverse=True)
     return sorted(items, key=lambda item: (not (item['joined'] or item['mine']), not item['open_seat'], item['deadline']))

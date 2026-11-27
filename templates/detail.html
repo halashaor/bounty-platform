@@ -82,7 +82,7 @@
         {% if pieces %}
         <ol class="share-list">
           {% for piece in pieces %}{% set doing = piece_crews[piece.id] %}{% set mine = g.user.id in doing|map(attribute='id')|list %}{% set pkey = medal_key(piece) %}
-          <li class="share {{ piece.status }}">
+          <li class="share {{ piece.status }}{{ ' unneeded' if piece.status == 'open' and task.status == 'done' }}">
             {{ medal(pkey, 'share-medal', ghost=piece.status == 'open') }}
             <div class="share-main">
               <a href="{{ url_for('detail', task_id=piece.id) }}"><b>{{ piece.title }}</b></a>
@@ -93,6 +93,7 @@
               {% if piece.status == 'open' %}
                 {% if task.status in ('open', 'active') %}
                 <form method="post" action="{{ url_for('task_action', task_id=piece.id, action='join') }}" data-quick-claim>{{ csrf() }}<button class="btn btn-sm">接下这份</button></form>
+                {% elif task.status == 'done' %}<span class="st unneeded">不用做了</span>
                 {% else %}<span class="st open"><i></i>等人接</span>{% endif %}
               {% else %}
                 <span class="who">{{ seats(doing, none, false, 3) }}<span><b>{% if doing|length == 1 %}{{ '你' if mine else doing[0].name }}{% else %}{{ doing|length }} 人{% endif %}</b><small>{{ {'active': '在做', 'review': '交了，等验收', 'done': '做完了'}[piece.status] }}</small></span></span>
@@ -104,7 +105,7 @@
           {% endfor %}
         </ol>
         {% else %}
-        <p class="pieces-empty">还没拆分工。一起做的人商量好怎么分头干，就把其中一块拆出来：拆出来的分工会出现在「发现」里，谁都能接、也能几个人一起做，做的人各拿一枚勋章，也就加入了这个大任务。</p>
+        <p class="pieces-empty">还没拆分工。一起做的人商量好怎么分头干，就把其中一块拆出来：拆出来的分工就列在这里，谁都能接、也能几个人一起做，做的人各拿一枚勋章，也就加入了这个大任务。</p>
         {% endif %}
         {% if task.status in ('open', 'active') and (member or owner) %}
         <details class="add-piece"{% if request.args.get('split') %} open{% endif %}>
@@ -174,7 +175,9 @@
       {% endif %}
 
       {% set full = task.team_size and members|length >= task.team_size %}
-      {% if task.status in ('open', 'active') and not member and seat_open %}
+      {% if big and big.status == 'done' and task.status == 'open' %}
+      <div class="act panel"><h3>不用做了</h3><p>大任务「{{ big.title }}」已经完成，这份分工没人接，就不用再做了。</p></div>
+      {% elif task.status in ('open', 'active') and not member and seat_open %}
       <form class="act panel" method="post" action="{{ url_for('task_action', task_id=task.id, action='join') }}" data-action-form="claim">
         {{ csrf() }}<h3>{% if owner %}你也一起做？{% elif not members %}想接这个任务？{% else %}一起做这个{{ '大任务' if team else '任务' }}？{% endif %}</h3>
         {% if not owner and not me.total %}<p class="first-note">{{ icon('medal') }}这会是你的第一个任务。{{ task.owner_name }} 验收时会知道，第一枚勋章背面会多刻一个「初」字。</p>{% endif %}
