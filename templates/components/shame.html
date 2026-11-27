@@ -11,6 +11,8 @@
     'kind': p.kind,
     'kind_label': p.kind_label,
     'reason': p.reason,
+    'display_reason': p.display_reason,
+    'has_custom_reason': p.has_custom_reason,
     'by': p.pinned_by_name,
     'time': p.created_at|date,
     'lashes': p.lashes,
@@ -40,7 +42,7 @@
     {% endif %}
   </div>
   <div class="shame-stage-wrap" data-shame-wrap title="点击画面补抽一鞭">
-    <canvas class="shame-canvas" data-shame-canvas aria-label="耻辱柱动效：{{ first.user_name }} 的旗帜被大钉子钉在耻辱柱上并被鞭子抽打"></canvas>
+    <canvas class="shame-canvas" data-shame-canvas aria-label="耻辱柱动效：{{ first.user_name }} 的旗帜被雕纹巨钉钉在耻辱柱上并被鞭子抽打"></canvas>
     <div class="shame-hud">
       <span class="shame-hint">点击画面补抽一鞭</span>
       <span class="shame-lashes">已抽打 <b data-shame-count>{{ first.lashes }}</b> 鞭</span>
@@ -50,7 +52,7 @@
     <div class="shame-reason-box">
       <span class="shame-kind{{ '' if first.kind == 'overdue' else ' ' ~ first.kind }}" data-shame-kind>{{ first.kind_label }}</span>
       <div class="shame-reason-body">
-        <p data-shame-reason>「{{ first.reason }}」</p>
+        <p data-shame-reason>{% if first.has_custom_reason %}「{{ first.display_reason }}」{% else %}{{ first.display_reason }}{% endif %}</p>
         <cite>
           <span data-shame-meta>由 {{ first.pinned_by_name }} 钉上耻辱柱 · {{ first.created_at|date }}</span>
           {% if show_task %}<a class="shame-task-link" data-shame-task href="{{ url_for('detail', task_id=first.task_id) }}">任务：{{ first.task_title }}</a>{% endif %}
