@@ -55,49 +55,78 @@ class ShamePillarTest(unittest.TestCase):
     def post(self, client, path, data):
         return client.post(path, data={**data, 'csrf': self.csrf(client)}, follow_redirects=True)
 
-    def test_pin_requires_publisher_worker_and_reason(self):
+    def test_three_options_and_conditional_reason_validation(self):
         # 没人接任务时不能钉
         with self.assertRaises(InvalidAction):
-            shame.pin(self.path, self.task_id, 1, 2, '还没接就想钉')
+            shame.pin(self.path, self.task_id, 1, 2, '', 'overdue')
         act(self.path, self.task_id, 2, 'join')
-        # 理由为空或超长报错
+
+        # 权限校验与未知类型
         with self.assertRaises(InvalidAction):
-            shame.pin(self.path, self.task_id, 1, 2, '   ')
+            shame.pin(self.path, self.task_id, 3, 2, '', 'overdue')
         with self.assertRaises(InvalidAction):
-            shame.pin(self.path, self.task_id, 1, 2, '超' * 201)
-        # 非发布者不能钉
+            shame.pin(self.path, self.task_id, 2, 2, '', 'overdue')
         with self.assertRaises(InvalidAction):
-            shame.pin(self.path, self.task_id, 3, 2, '路人乱钉')
+            shame.pin(self.path, self.task_id, 1, 3, '', 'overdue')
         with self.assertRaises(InvalidAction):
-            shame.pin(self.path, self.task_id, 2, 2, '自己钉自己')
-        # 不能钉没接任务的人
+            shame.pin(self.path, self.task_id, 1, 2, '', 'invalid_kind')
+
+        # 选「其他」时必须填写理由且不超过 200 字
         with self.assertRaises(InvalidAction):
-            shame.pin(self.path, self.task_id, 1, 3, 'other 没接这个任务')
-        # 只要发布者写明理由就能钉（即使未逾期、未退回）
-        pin_id = shame.pin(self.path, self.task_id, 1, 2, '进度严重落后且未沟通', 'overdue')
-        self.assertGreater(pin_id, 0)
+            shame.pin(self.path, self.task_id, 1, 2, '   ', 'other')
+        with self.assertRaises(InvalidAction):
+            shame.pin(self.path, self.task_id, 1, 2, '超' * 201, 'other')
+
+        # 选「逾期」无需理由直接可钉
+        pin1 = shame.pin(self.path, self.task_id, 1, 2, '', 'overdue')
+        self.assertGreater(pin1, 0)
         # 同一任务同一人不能重复钉
         with self.assertRaises(InvalidAction):
-            shame.pin(self.path, self.task_id, 1, 2, '再钉一次')
+            shame.pin(self.path, self.task_id, 1, 2, '', 'overdue')
+        shame.lift(self.path, pin1, 1)
+
+        # 选「未达到交付标准」(rejected / substandard) 同样无需理由
+        pin2 = shame.pin(self.path, self.task_id, 1, 2, '', 'rejected')
+        with connect(self.path) as db:
+            item = shame.active_for_task(db, self.task_id)[0]
+            self.assertEqual(item['kind_label'], '未达到交付标准')
+            self.assertEqual(item['reason'], '')
+            self.assertEqual(item['display_reason'], '提交成果未达到任务交付标准')
+        shame.lift(self.path, pin2, 1)
+
+        # 选「其他」写明理由可钉
+        pin3 = shame.pin(self.path, self.task_id, 1, 2, '临时失联未交接', 'other')
+        with connect(self.path) as db:
+            item = shame.active_for_task(db, self.task_id)[0]
+            self.assertEqual(item['id'], pin3)
+            self.assertEqual(item['kind_label'], '其他')
+            self.assertEqual(item['display_reason'], '临时失联未交接')
 
     def test_visible_to_everyone_on_task_and_shame_page_and_lift_anytime(self):
         act(self.path, self.task_id, 2, 'join')
+        # 任务详情页右侧表单呈现三个选项
+        owner_before = self.clients[0].get(f'/tasks/{self.task_id}').text
+        self.assertIn('逾期', owner_before)
+        self.assertIn('未达到交付标准', owner_before)
+        self.assertIn('其他', owner_before)
+        self.assertEqual(FormDepth(owner_before).max_depth, 1)
+
+        # 通过表单以「未达到交付标准」不填理由直接钉上
         res = self.post(self.clients[0], f'/tasks/{self.task_id}/shame/pin',
-                        {'user_id': '2', 'kind': 'rejected', 'reason': '边界用例全部挂了'})
+                        {'user_id': '2', 'kind': 'rejected', 'reason': ''})
         self.assertEqual(res.status_code, 200)
 
-        # 所有人（发布者、被钉者、第三方队友）进任务详情页和独立耻辱柱页都能看到动效展台与理由
         for client in self.clients:
             detail_html = client.get(f'/tasks/{self.task_id}').text
             self.assertIn('data-shame-stage', detail_html)
-            self.assertIn('边界用例全部挂了', detail_html)
+            self.assertIn('未达到交付标准', detail_html)
             self.assertIn('shame.js', detail_html)
             self.assertEqual(FormDepth(detail_html).max_depth, 1)
 
             shame_html = client.get('/shame').text
             self.assertIn('data-shame-stage', shame_html)
             self.assertIn('造评测数据', shame_html)
-            self.assertIn('边界用例全部挂了', shame_html)
+            self.assertIn('未达到交付标准', shame_html)
             self.assertEqual(FormDepth(shame_html).max_depth, 1)
 
         with connect(self.path) as db:
@@ -140,11 +169,9 @@ class ShamePillarTest(unittest.TestCase):
         piece_id = teams.split(self.path, big_id, 2, {'title': '造 E 题数据', 'tag': '数据', 'kind': 'standard-normal'})
         act(self.path, piece_id, 3, 'join')
 
-        # 大任务发布者（用户 1）可以把分工执行人（用户 3）钉上耻辱柱并拔出
-        pin_id = shame.pin(self.path, piece_id, 1, 3, '模拟赛开赛前还没交数据', 'overdue')
+        pin_id = shame.pin(self.path, piece_id, 1, 3, '', 'overdue')
         shame.lift(self.path, pin_id, 1, '已补交')
 
-        # 重复 initialize 幂等且保留原记录
         initialize(self.path)
         with connect(self.path) as db:
             row = db.execute('SELECT status,lift_note FROM shame_pins WHERE id=?', (pin_id,)).fetchone()

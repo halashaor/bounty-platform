@@ -1,5 +1,5 @@
-"""耻辱柱：任务发布者（及所属大任务发布者）写明理由即可把接了任务的人钉上耻辱柱，随时可以拔出。
-所有登录成员在任务详情页和独立的「耻辱柱」页面都能看到当前在柱的人与动效，并可互动抽鞭计数。"""
+"""耻辱柱：任务发布者（及所属大任务发布者）可按「逾期 / 未达到交付标准 / 其他」把接了任务的人钉上耻辱柱，
+仅选「其他」时需要写明理由；钉上后随时可以拔出。所有登录成员在任务详情页和独立的「耻辱柱」页面都能看到动效并可互动抽鞭计数。"""
 from flask import Blueprint, flash, g, jsonify, redirect, render_template, request, url_for
 
 from .db import connect
@@ -7,10 +7,16 @@ from .service import InvalidAction, now
 
 REASON_LIMIT = 200
 SHAME_KINDS = {
-    'overdue': '逾期未交',
-    'rejected': '验收未通过',
-    'other': '挂榜示众',
+    'overdue': '逾期',
+    'rejected': '未达到交付标准',
+    'other': '其他',
 }
+SHAME_DEFAULTS = {
+    'overdue': '超过约定截止时间，未按期完成交付',
+    'rejected': '提交成果未达到任务交付标准',
+    'other': '',
+}
+_KIND_ALIASES = {'substandard': 'rejected'}
 
 
 def can_manage(db, task, user_id):
@@ -31,10 +37,10 @@ def _task(db, task_id):
     return task
 
 
-def _reason(raw, required=True):
+def _reason(raw, required=False):
     text = (raw or '').strip()
     if required and not text:
-        raise InvalidAction('请写明钉上耻辱柱的理由。')
+        raise InvalidAction('选择「其他」时请写明钉上耻辱柱的理由。')
     if len(text) > REASON_LIMIT:
         raise InvalidAction(f'理由或说明不能超过 {REASON_LIMIT} 字。')
     return text
@@ -69,9 +75,13 @@ def candidates(db, task, actor_id):
             if person['id'] != actor_id and person['id'] not in active_ids]
 
 
-def pin(path, task_id, actor_id, target_user_id, reason, kind='overdue'):
-    reason = _reason(reason, required=True)
-    kind = kind if kind in SHAME_KINDS else 'other'
+def pin(path, task_id, actor_id, target_user_id, reason='', kind='overdue'):
+    kind = _KIND_ALIASES.get(kind, kind)
+    if kind not in SHAME_KINDS:
+        raise InvalidAction('请选择有效的上柱类型。')
+    reason = _reason(reason, required=(kind == 'other'))
+    if kind != 'other':
+        reason = ''
     try:
         uid = int(target_user_id)
     except (TypeError, ValueError):
@@ -91,7 +101,8 @@ def pin(path, task_id, actor_id, target_user_id, reason, kind='overdue'):
         ts = now()
         pin_id = db.execute('''INSERT INTO shame_pins (task_id,user_id,pinned_by,kind,reason,status,lashes,created_at)
             VALUES (?,?,?,?,?,'active',0,?)''', (task_id, uid, actor_id, kind, reason, ts)).lastrowid
-        body = f'把 {workers[uid]} 钉上了耻辱柱（{SHAME_KINDS[kind]}）：{reason}'
+        label = SHAME_KINDS[kind]
+        body = f'把 {workers[uid]} 钉上了耻辱柱（{label}）：{reason}' if reason else f'把 {workers[uid]} 钉上了耻辱柱（{label}）。'
         db.execute('INSERT INTO events (task_id,user_id,kind,body,created_at) VALUES (?,?,?,?,?)',
                    (task_id, actor_id, 'shame_pin', body, ts))
         return pin_id
@@ -147,7 +158,10 @@ def _decorate(rows, viewer_id=None):
     items = []
     for row in rows:
         item = dict(row)
-        item['kind_label'] = SHAME_KINDS.get(item['kind'], '挂榜示众')
+        item['kind_label'] = SHAME_KINDS.get(item['kind'], '其他')
+        raw_reason = (item['reason'] or '').strip()
+        item['display_reason'] = raw_reason or SHAME_DEFAULTS.get(item['kind'], '') or '另有违约事由'
+        item['has_custom_reason'] = bool(raw_reason)
         item['can_lift'] = bool(viewer_id) and (
             item['pinned_by'] == viewer_id
             or item['task_owner_id'] == viewer_id

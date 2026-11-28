@@ -1,45 +1,46 @@
-/* 耻辱柱展台：任务详情页与独立耻辱柱页共用。
-   使用 結 YUI 现有色彩与字体变量，不破坏顶栏和其他模块样式。 */
-.shame-card{position:relative;border-radius:24px;background:var(--ink);color:#fff;overflow:hidden;box-shadow:0 16px 40px rgba(27,29,42,.18)}
-.shame-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:15px 22px 12px;border-bottom:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(229,68,101,.16),transparent)}
+/* 耻辱柱展台：暗黑哥特幽冥美学，任务详情页与独立耻辱柱页共用。 */
+.shame-card{position:relative;border-radius:22px;background:#090B11;color:#F0F4F8;overflow:hidden;border:1px solid rgba(201,210,220,.16);box-shadow:0 20px 54px rgba(10,12,20,.38),inset 0 1px 0 rgba(255,255,255,.08)}
+.shame-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:15px 22px 12px;border-bottom:1px solid rgba(255,255,255,.07);background:linear-gradient(180deg,rgba(198,224,244,.07),transparent)}
 .shame-title{display:flex;align-items:center;gap:10px}
-.shame-seal{display:inline-grid;place-items:center;width:30px;height:30px;flex:none;border-radius:8px;border:2px solid var(--red);color:var(--red);font-family:'Hiragino Mincho ProN','Yu Mincho','Noto Serif CJK SC','Source Han Serif SC','Songti SC',serif;font-weight:900;font-size:16px;transform:rotate(-6deg);background:rgba(229,68,101,.12)}
-.shame-title b{display:block;font-size:15.5px;line-height:1.25;letter-spacing:.03em}
-.shame-title small{display:block;color:rgba(255,255,255,.62);font-size:12px}
+.shame-seal{display:inline-grid;place-items:center;width:30px;height:30px;flex:none;border-radius:6px;border:1.5px solid rgba(212,68,94,.78);color:#E56A80;font-family:'Hiragino Mincho ProN','Yu Mincho','Noto Serif CJK SC','Source Han Serif SC','Songti SC',serif;font-weight:900;font-size:16px;transform:rotate(-5deg);background:rgba(168,36,62,.16);box-shadow:0 0 14px rgba(168,36,62,.28)}
+.shame-title b{display:block;font-family:'Hiragino Mincho ProN','Yu Mincho','Noto Serif CJK SC','Source Han Serif SC','Songti SC',serif;font-size:16px;line-height:1.25;letter-spacing:.1em;color:#F3F7FB}
+.shame-title small{display:block;color:rgba(201,214,228,.56);font-size:11.5px}
 .shame-tabs{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.shame-pill{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:rgba(255,255,255,.86);font-size:12px;font-weight:700;cursor:pointer;transition:background 160ms,border-color 160ms,color 160ms}
-.shame-pill:hover{border-color:rgba(255,255,255,.5);color:#fff}
-.shame-pill.active{background:var(--red);border-color:var(--red);color:#fff}
+.shame-pill{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:999px;border:1px solid rgba(201,210,220,.18);background:rgba(255,255,255,.04);color:rgba(220,229,240,.8);font-size:12px;font-weight:700;cursor:pointer;transition:background 160ms,border-color 160ms,color 160ms}
+.shame-pill:hover{border-color:rgba(207,232,250,.48);color:#fff}
+.shame-pill.active{background:linear-gradient(135deg,rgba(168,36,62,.88),rgba(110,20,39,.94));border-color:rgba(244,146,166,.5);color:#fff;box-shadow:0 0 14px rgba(168,36,62,.34)}
 
-.shame-stage-wrap{position:relative;width:100%;aspect-ratio:16 / 8;min-height:320px;max-height:480px;background:#161823;cursor:pointer;overflow:hidden}
+.shame-stage-wrap{position:relative;width:100%;aspect-ratio:16 / 8.2;min-height:330px;max-height:510px;background:#07080D;cursor:pointer;overflow:hidden}
 .shame-canvas{display:block;width:100%;height:100%}
 .shame-hud{position:absolute;right:16px;bottom:14px;display:flex;align-items:center;gap:8px;pointer-events:none}
-.shame-hint{padding:5px 11px;border-radius:999px;background:rgba(255,255,255,.08);color:rgba(255,255,255,.72);font-size:11.5px;font-weight:700}
-.shame-lashes{display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:999px;background:rgba(27,29,42,.84);border:1px solid rgba(255,255,255,.16);font-size:12.5px;font-weight:800;color:#fff}
-.shame-lashes b{font-family:var(--num);color:var(--yellow);font-size:15px;min-width:18px;text-align:center}
+.shame-hint{padding:5px 11px;border-radius:999px;background:rgba(10,12,18,.62);border:1px solid rgba(255,255,255,.09);color:rgba(208,222,238,.7);font-size:11.5px;font-weight:600}
+.shame-lashes{display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:999px;background:rgba(10,12,18,.8);border:1px solid rgba(207,232,250,.22);font-size:12px;font-weight:700;color:#DCE8F5}
+.shame-lashes b{font-family:var(--num);color:#F3C98B;font-size:15px;min-width:18px;text-align:center}
 
-.shame-foot{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:14px;padding:15px 22px;background:rgba(255,255,255,.04);border-top:1px solid rgba(255,255,255,.08)}
+.shame-foot{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:14px;padding:15px 22px;background:rgba(255,255,255,.025);border-top:1px solid rgba(255,255,255,.07)}
 .shame-reason-box{display:flex;align-items:flex-start;gap:10px;min-width:0}
-.shame-kind{flex:none;display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--red);color:#fff;font-size:12px;font-weight:800;margin-top:2px}
-.shame-kind.rejected{background:var(--orange);color:var(--ink)}
-.shame-kind.other{background:#64697B;color:#fff}
-.shame-reason-body{min-width:0;font-size:13.5px;color:rgba(255,255,255,.94);line-height:1.55}
+.shame-kind{flex:none;display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:rgba(168,36,62,.86);border:1px solid rgba(244,146,166,.35);color:#FFF2F4;font-size:12px;font-weight:800;margin-top:2px}
+.shame-kind.rejected{background:rgba(156,107,44,.84);border-color:rgba(243,201,139,.38);color:#FFF7E8}
+.shame-kind.other{background:rgba(70,80,98,.86);border-color:rgba(201,210,220,.32);color:#EDF3FA}
+.shame-reason-body{min-width:0;font-size:13.5px;color:rgba(240,245,250,.93);line-height:1.55}
 .shame-reason-body p{margin:0;overflow-wrap:anywhere}
-.shame-reason-body cite{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:4px;font-style:normal;font-size:12px;color:rgba(255,255,255,.58)}
-.shame-task-link{color:var(--yellow);font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.shame-reason-body cite{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:4px;font-style:normal;font-size:12px;color:rgba(194,208,224,.55)}
+.shame-task-link{color:#F3C98B;font-weight:700;text-decoration:underline;text-underline-offset:3px}
 .shame-task-link:hover{color:#fff}
 .shame-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .shame-actions form{display:contents}
-.shame-btn-whip{background:var(--red);border-color:var(--red);color:#fff}
-.shame-btn-whip:hover{background:#d43455;border-color:#d43455}
-.shame-card .btn-line{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.28);color:#fff}
-.shame-card .btn-line:hover{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.55)}
+.shame-btn-whip{background:linear-gradient(135deg,#9E1E38,#C93250);border-color:rgba(244,146,166,.38);color:#fff}
+.shame-btn-whip:hover{background:linear-gradient(135deg,#B32442,#DB3B5B);border-color:rgba(255,190,202,.52)}
+.shame-card .btn-line{background:rgba(255,255,255,.07);border-color:rgba(201,210,220,.26);color:#EEF3FA}
+.shame-card .btn-line:hover{background:rgba(255,255,255,.15);border-color:rgba(207,232,250,.5)}
 
-/* 任务详情页：时间线高亮 + 侧边栏折叠框 */
+/* 任务详情页：时间线高亮 + 三选项条件理由表单 */
 .ev.event-shame_pin p{border-left:3px solid var(--red);background:#FDF1F4;padding:8px 12px;border-radius:0 10px 10px 0}
 .ev.event-shame_pin em{background:var(--red);color:#fff}
 .ev.event-shame_unpin em{background:var(--ink);color:#fff}
 .shame-pin-box summary{color:var(--red-text)}
+.shame-pin-form:not(:has(input[name="kind"][value="other"]:checked)) .shame-other-reason{display:none}
+.shame-pin-form:has(input[name="kind"][value="other"]:checked) .shame-no-reason{display:none}
 
 /* 独立耻辱柱页 */
 .shame-page{display:grid;gap:22px;padding-top:20px;padding-bottom:76px}

@@ -12,7 +12,7 @@
     <div>
       <span class="label">耻辱柱</span>
       <div class="bigrow"><b class="big num">{{ active|length }}</b><span>人正在柱上</span></div>
-      <p>发布者在任务页写明理由即可把接了任务的人钉上来，随时可以拔出钉子。</p>
+      <p>发布者在任务页选「逾期 / 未达到交付标准 / 其他」即可把接了任务的人钉上来（仅选「其他」需填理由），随时可以拔出钉子。</p>
     </div>
   </header>
 
@@ -31,7 +31,7 @@
             <span class="shame-kind{{ '' if p.kind == 'overdue' else ' ' ~ p.kind }}">{{ p.kind_label }}</span>
             <a href="{{ url_for('detail', task_id=p.task_id) }}">{{ p.task_title }}</a>
           </div>
-          <p>「{{ p.reason }}」</p>
+          <p>{% if p.has_custom_reason %}「{{ p.display_reason }}」{% else %}{{ p.display_reason }}{% endif %}</p>
           <small>由 {{ p.pinned_by_name }} 钉于 {{ p.created_at|date }} · 已被抽打 {{ p.lashes }} 鞭</small>
         </div>
         <div class="shame-row-act">
@@ -68,7 +68,7 @@
             <span class="tag">{{ p.kind_label }}</span>
             <a href="{{ url_for('detail', task_id=p.task_id) }}">{{ p.task_title }}</a>
           </div>
-          <p>上柱理由：「{{ p.reason }}」{% if p.lift_note %} · 拔出说明：{{ p.lift_note }}{% endif %}</p>
+          <p>{% if p.has_custom_reason %}理由：「{{ p.display_reason }}」{% else %}{{ p.display_reason }}{% endif %}{% if p.lift_note %} · 拔出说明：{{ p.lift_note }}{% endif %}</p>
           <small>{{ p.pinned_by_name }} 钉于 {{ p.created_at|date }} · {{ p.lifted_by_name or p.pinned_by_name }} 于 {{ p.lifted_at|date }} 拔出 · 共挨了 {{ p.lashes }} 鞭</small>
         </div>
       </li>

@@ -7,7 +7,7 @@
 {% from 'components/shame.html' import shame_stage %}
 {% block title %}{{ task.title }} · 結 YUI{% endblock %}
 {% block body_class %}page-detail{% endblock %}
-{% block scripts %}{% if shame_active %}<script src="{{ url_for('static', filename='shame.js') }}" defer></script>{% endif %}{% endblock %}
+{% block scripts %}{% if shame_active or (shame_can_manage and shame_candidates) %}<script src="{{ url_for('static', filename='shame.js') }}" defer></script>{% endif %}{% endblock %}
 {% block content %}
 {% set key = medal_key(task) %}
 {% set hue = medals[key].hue %}
@@ -296,7 +296,7 @@
       {% if shame_can_manage and shame_candidates %}
       <details class="add-piece shame-pin-box"{% if not shame_active %} id="shame"{% endif %}>
         <summary>{{ icon('info') }}钉上耻辱柱</summary>
-        <form method="post" action="{{ url_for('shame.pin_task', task_id=task.id) }}">
+        <form class="shame-pin-form" method="post" action="{{ url_for('shame.pin_task', task_id=task.id) }}">
           {{ csrf() }}
           {% if shame_candidates|length == 1 %}
           <input type="hidden" name="user_id" value="{{ shame_candidates[0].id }}">
@@ -304,8 +304,9 @@
           {% else %}
           <div class="chips">{% for person in shame_candidates %}<label class="chip"><input type="radio" name="user_id" value="{{ person.id }}"{% if loop.first %} checked{% endif %}>{{ ava(person.name, person.id) }}{{ person.name }}</label>{% endfor %}</div>
           {% endif %}
-          <select name="kind" aria-label="上柱类型">{% for k, label in shame_kinds.items() %}<option value="{{ k }}"{% if k == shame_default_kind %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
-          <input name="reason" required maxlength="200" placeholder="写明钉上耻辱柱的理由" aria-label="耻辱柱理由">
+          <div class="chips">{% for k, label in shame_kinds.items() %}<label class="chip"><input type="radio" name="kind" value="{{ k }}"{% if k == shame_default_kind %} checked{% endif %}>{{ label }}</label>{% endfor %}</div>
+          <input class="shame-other-reason" name="reason" maxlength="200" placeholder="写明钉上耻辱柱的理由" aria-label="耻辱柱理由"{% if shame_default_kind == 'other' %} required{% endif %}>
+          <p class="add-note shame-no-reason">选「逾期」或「未达到交付标准」无需填写理由，直接钉上即可。</p>
           <button class="btn btn-sm shame-btn-whip">钉上耻辱柱</button>
           <p class="add-note">钉上后所有人进这个任务页和「耻辱柱」都能看到动效，随时可以拔出钉子。</p>
         </form>
