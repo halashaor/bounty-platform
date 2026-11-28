@@ -11,7 +11,7 @@ from markupsafe import Markup, escape
 from .db import connect
 from .honors import medal_key
 from .service import InvalidAction, now, zone
-from .talk import _named, render
+from .talk import _named, mentions_of, render
 
 BODY_LIMIT = 10000
 TODO_LIMIT = 200
@@ -345,28 +345,20 @@ def unseen_count(db, user_id):
         WHERE m.user_id=? AND m.seen_at IS NULL AND n.private=0''', (user_id,)).fetchone()[0]
 
 
-def pings(path, user_id, limit=3):
-    """Mentions not announced yet; they are announced once (the badge stays until they are read)."""
-    with connect(path, write=True) as db:
-        rows = db.execute(f'''{NOTE_SELECT} JOIN note_mentions m ON m.note_id=n.id
-            WHERE m.user_id=? AND m.shown_at IS NULL AND m.seen_at IS NULL AND n.private=0
-            ORDER BY n.created_at DESC LIMIT ?''', (user_id, limit)).fetchall()
-        notes = _decorate(db, rows, user_id)
-        if notes:
-            db.executemany('UPDATE note_mentions SET shown_at=? WHERE note_id=? AND user_id=?',
-                           [(now(), note['id'], user_id) for note in notes])
-    return [dict(id=note['id'], who=note['user_name'], who_id=note['user_id'], head=note['head'],
-                 task=note['task_title'], at=note['created_at']) for note in notes]
+def unseen(db, user_id, limit=20):
+    """Mentions not read yet, newest first; they stay until the note or 提到我 is opened."""
+    rows = db.execute(f'''{NOTE_SELECT} JOIN note_mentions m ON m.note_id=n.id
+        WHERE m.user_id=? AND m.seen_at IS NULL AND n.private=0 ORDER BY n.created_at DESC LIMIT ?''', (user_id, limit)).fetchall()
+    return _decorate(db, rows, user_id)
 
 
 def mark_seen(path, user_id, note_ids=None):
     with connect(path, write=True) as db:
         if note_ids is None:
-            db.execute('UPDATE note_mentions SET seen_at=?,shown_at=COALESCE(shown_at,?) WHERE user_id=? AND seen_at IS NULL',
-                       (now(), now(), user_id))
+            db.execute('UPDATE note_mentions SET seen_at=? WHERE user_id=? AND seen_at IS NULL', (now(), user_id))
         else:
-            db.executemany('UPDATE note_mentions SET seen_at=?,shown_at=COALESCE(shown_at,?) WHERE user_id=? AND note_id=?',
-                           [(now(), now(), user_id, note_id) for note_id in note_ids])
+            db.executemany('UPDATE note_mentions SET seen_at=? WHERE user_id=? AND note_id=? AND seen_at IS NULL',
+                           [(now(), user_id, note_id) for note_id in note_ids])
 
 
 def body_html(text, named, viewer):
@@ -401,13 +393,6 @@ def install(app):
             return for_task(db, task_id, g.user['id'])
 
     app.jinja_env.globals['task_progress'] = task_progress
-
-    @app.context_processor
-    def notes_badge():
-        if not g.get('user'):
-            return dict(notes_unseen=0)
-        with connect(path) as db:
-            return dict(notes_unseen=unseen_count(db, g.user['id']))
 
     @page.before_request
     def signed_in():
@@ -460,10 +445,13 @@ def install(app):
 
     @page.get('/at')
     def at_me():
+        # 手帳和寄合里提到我的放在一起按时间排；打开这页算看过手帳里的 @，寄合的要点进话题才算读过
         with connect(path) as db:
-            notes = mentions(db, g.user['id'])
+            items = [('note', note) for note in mentions(db, g.user['id'])]
+            items += [('talk', post) for post in mentions_of(db, g.user['id'])]
+        items.sort(key=lambda item: item[1]['created_at'], reverse=True)
         mark_seen(path, g.user['id'])
-        return render_template('notes_at.html', notes=notes)
+        return render_template('notes_at.html', items=items[:50])
 
     @page.get('/n/<int:note_id>')
     def go(note_id):
@@ -564,16 +552,7 @@ def install(app):
             return jsonify(ok=True, state=todo['state'], private=bool(todo['private']))
         return redirect(url_for('notes.mine') + '#todos')
 
-    @page.get('/pings')
-    def ping_list():
-        items = pings(path, g.user['id'])
-        for item in items:
-            item['url'] = url_for('notes.go', note_id=item['id'])
-            item['seen_url'] = url_for('notes.seen', note_id=item['id'])
-        with connect(path) as db:
-            return jsonify(ok=True, items=items, unseen=unseen_count(db, g.user['id']))
-
-    @page.post('/pings/<int:note_id>/seen')
+    @page.post('/n/<int:note_id>/seen')
     def seen(note_id):
         mark_seen(path, g.user['id'], [note_id])
         return jsonify(ok=True)

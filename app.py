@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import unquote
 from flask import Flask, abort, flash, g, redirect, render_template, render_template_string, request, session, url_for, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
-from bounty import blocks, cleanup, discover, extend, games, notes, progress, recap, shame, tags, talk, teams, titles, unlocks
+from bounty import alerts, blocks, cleanup, discover, extend, games, notes, progress, recap, shame, tags, talk, teams, titles, unlocks
 from bounty.db import connect, initialize
 from bounty.honors import COLD_DAYS, EFFORT, IMPORTANCE, URGENCY, MEDALS, cold_bonus, medal_key, task_xp
 from bounty.service import (CATEGORIES, STATUSES, KINDS, MAX_INTERESTS, MAX_TEAM, TEAM_TZ, InvalidAction, act, clap,
@@ -17,7 +17,7 @@ from bounty.service import (CATEGORIES, STATUSES, KINDS, MAX_INTERESTS, MAX_TEAM
 PAGE_SIZE = 12
 # 轮到这个人的事（表别名 t，参数 :me）：自己加入了在做的任务、等他验收或回复延期的任务
 # （自己发布的，以及自己发布的大任务里拆出去、交上来的分工）
-CHECKER = "(t.owner_id=:me OR t.parent_id IN (SELECT id FROM tasks WHERE owner_id=:me AND kind='team'{}))"
+CHECKER = alerts.CHECKER
 MY_TURN = f'''((t.status='active' AND t.id IN (SELECT task_id FROM task_members WHERE user_id=:me))
     OR (t.status='review' AND {CHECKER.format(" AND status<>'done'")})
     OR (t.status='active' AND EXISTS (SELECT 1 FROM extensions x WHERE x.task_id=t.id AND x.status='pending')
@@ -996,6 +996,7 @@ def create_app(config=None):
     install_api(app)
     talk.install(app)
     notes.install(app)
+    alerts.install(app)
     shame.install(app)
     return app
 

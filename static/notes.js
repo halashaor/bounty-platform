@@ -1,71 +1,11 @@
-/* 手帳：@ 提示、记一笔时的 @ 补全、长补充折叠、待办打勾。
+/* 手帳：记一笔时的 @ 补全、长补充折叠、待办打勾（@ 的提醒卡在 alerts.js）。
    操作先落库再动画；动效开关关掉时 CSS 动画全站一起停。 */
 (() => {
   const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
   const PALETTE = ['#2866B1', '#008FBF', '#D98200', '#00A27A', '#E54465', '#9C6B3F', '#1B1D2A'];
   const esc = text => String(text).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
-  const icon = path => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
-  const AT = icon("<circle cx='12' cy='12' r='3.6'/><path d='M15.6 8.4v4.8a2.4 2.4 0 0 0 4.8 0V12a8.4 8.4 0 1 0-3.3 6.7'/>");
   const post = (url, body) => fetch(url, {method: 'POST', body, credentials: 'same-origin',
     headers: {'X-CSRF-Token': csrf, 'X-Requested-With': 'fetch', 'Accept': 'application/json'}});
-
-  /* ---------- 有人 @ 你：右上角弹一张卡，10 秒后自己收起；红点留到看过为止 ---------- */
-  const box = document.querySelector('.pings[data-pings]');
-  // 「我的」上的数字 = 轮到你的任务 + 还没看的 @
-  function badge(unseen) {
-    const nav = document.querySelector('.nav a[data-waiting]');
-    const count = Number(nav?.dataset.waiting || 0) + unseen;
-    for (const link of [nav, document.querySelector('.tabbar a[href="' + nav?.getAttribute('href') + '"]')]) {
-      if (!link) continue;
-      let mark = link.querySelector('b');
-      if (!count) { mark?.remove(); continue; }
-      if (!mark) { mark = document.createElement('b'); link.append(mark); }
-      if (mark.textContent !== String(count)) {
-        mark.textContent = count;
-        mark.classList.remove('bump'); void mark.offsetWidth; mark.classList.add('bump');
-      }
-    }
-  }
-  function dismiss(card) {
-    card.classList.add('out');
-    setTimeout(() => card.remove(), 300);
-  }
-  function show(item) {
-    const card = document.createElement('article');
-    card.className = 'ping';
-    card.setAttribute('role', 'status');
-    const color = PALETTE[item.who_id % 7];
-    card.innerHTML = `<span class="ping-ava"><span class="ava" style="--c:${color}" aria-hidden="true">${esc(item.who.slice(0, 1))}</span><i>${AT}</i></span>
-      <div class="ping-b"><p class="ping-m"><b>${esc(item.who)}</b>在手帳里提到了你<time>刚刚</time></p>
-        <p class="ping-h">${esc(item.head)}</p>
-        <div class="ping-a"><a class="mini dark" href="${esc(item.url)}">去看看</a><button class="mini ghost" type="button">知道了</button></div></div>
-      <i class="ping-bar" aria-hidden="true"></i>`;
-    card.querySelector('button').addEventListener('click', () => { post(item.seen_url); dismiss(card); refresh(); });
-    let timer = setTimeout(() => dismiss(card), 10600);
-    card.addEventListener('mouseenter', () => clearTimeout(timer));
-    card.addEventListener('focusin', () => clearTimeout(timer));
-    card.addEventListener('mouseleave', () => { timer = setTimeout(() => dismiss(card), 4000); });
-    box.append(card);
-  }
-  let busy = false;
-  async function refresh() {
-    if (!box || busy || document.hidden) return;
-    busy = true;
-    try {
-      const reply = await fetch(box.dataset.pings, {credentials: 'same-origin', headers: {'Accept': 'application/json'}});
-      if (reply.ok) {
-        const data = await reply.json();
-        data.items.reverse().forEach(show);
-        badge(data.unseen);
-      }
-    } catch (error) { /* 没连上就下次再问 */ }
-    busy = false;
-  }
-  if (box) {
-    refresh();
-    setInterval(refresh, 60000);
-    document.addEventListener('visibilitychange', refresh);
-  }
 
   /* ---------- 长补充折起来，只露三行 ---------- */
   for (const block of document.querySelectorAll('[data-fold]')) {

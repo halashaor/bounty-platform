@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% from 'components/notes.html' import entry %}
+{% from 'components/ui.html' import ava %}
 {% from 'components/sections.html' import tabs with context %}
 {% block title %}手帳 · 提到我 · 結 YUI{% endblock %}
 {% block body_class %}page-notes{% endblock %}
@@ -7,9 +8,19 @@
 <div class="wrap notes">
   {{ tabs('mine', 'at') }}<h1 class="sr-only">提到我</h1>
   <article class="log panel at-list" aria-label="提到我的记录">
-    {% if notes %}
-    <ol class="ents with-who">{% for note in notes %}{{ entry(note, who=true, stamp='date') }}{% endfor %}</ol>
-    {% else %}<p class="log-empty">还没有人在手帳里提到你。</p>{% endif %}
+    {% if items %}
+    <ol class="ents with-who">{% for kind, item in items %}
+      {%- if kind == 'note' %}{{ entry(item, who=true, stamp='date') }}
+      {%- else %}{% set href = url_for('talk.thread', topic_id=item.topic_id) ~ '#p' ~ item.id %}
+      <li class="ent talk-at{{ ' unread' if item.unread }}">
+        <i class="node" aria-hidden="true"></i>
+        <div class="ent-b">
+          <div class="ent-m">{{ ava(item.user_name, item.user_id) }}<span class="who">{{ item.user_name }}</span><b class="k">寄合点名</b>
+            <time datetime="{{ item.created_at }}">{{ item.created_at|date }}</time><a class="tlink" href="{{ href }}">{{ item.title }}</a></div>
+          <p class="ent-h"><a href="{{ href }}">{{ item.preview }}</a></p>
+        </div>
+      </li>{% endif %}{% endfor %}</ol>
+    {% else %}<p class="log-empty">还没有人在手帳或寄合里提到你。</p>{% endif %}
   </article>
 </div>
 {% endblock %}

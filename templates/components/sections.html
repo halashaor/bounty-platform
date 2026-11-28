@@ -1,11 +1,11 @@
-{# 顶栏只有四个入口；同一个入口里的几页用页面顶上的页签切换。只有等你处理的事显示数字，其余只亮一个小点。 #}
+{# 顶栏只有四个入口；同一个入口里的几页用页面顶上的页签切换。只有要你动手的事显示数字（见 bounty/alerts.py），其余只亮一个小点。 #}
 {% macro tabs(section, current) -%}
 {%- macro tab(key, href, label) -%}<a href="{{ href }}"{% if key == current %} aria-current="page"{% endif %}>{{ label }}{{ caller() if caller }}</a>{%- endmacro -%}
 <nav class="timeseg section-tabs" aria-label="{{ {'mine': '我的', 'team': '大家', 'honors': '成就'}[section] }}">
   {%- if section == 'mine' %}
-  {% call tab('tasks', url_for('mine'), '任务') %}{% if my_turn %}<b class="dot-n" aria-label="{{ my_turn }} 件轮到你">{{ my_turn }}</b>{% endif %}{% endcall %}
+  {% call tab('tasks', url_for('mine'), '任务') %}{% if alerts.tasks %}<b class="dot-n" aria-label="{{ alerts.tasks }} 件等你处理">{{ alerts.tasks }}</b>{% endif %}{% endcall %}
   {{ tab('notes', url_for('notes.mine'), '手帳') }}
-  {% call tab('at', url_for('notes.at_me'), '提到我') %}{% if notes_unseen %}<b class="dot-n" aria-label="{{ notes_unseen }} 条提到你">{{ notes_unseen }}</b>{% endif %}{% endcall %}
+  {% call tab('at', url_for('notes.at_me'), '提到我') %}{% if alerts.mentions %}<b class="dot-n" aria-label="{{ alerts.mentions }} 条提到你">{{ alerts.mentions }}</b>{% endif %}{% endcall %}
   {%- elif section == 'team' %}
   {{ tab('notes', url_for('notes.everyone'), '手帳') }}
   {% call tab('talk', url_for('talk.board'), '寄合') %}{% if talk_unread %}<i class="ndot" aria-label="{{ talk_unread }} 个话题有新帖"></i>{% endif %}{% endcall %}

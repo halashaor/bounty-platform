@@ -58,19 +58,28 @@ class NotesTest(unittest.TestCase):
         with self.assertRaises(InvalidAction):
             notes.write(self.path, 1, '随便', kind='diary')
 
-    def test_mentions_ping_once_and_badge_until_read(self):
+    def test_mentions_stay_until_read(self):
         me, wang, _ = self.clients
         note_id, named = notes.write(self.path, 2, 'E 题时限想定 1 秒，@陈默 你那边最坏跑多久？', task_id=self.task)
         self.assertEqual(named, [1])
-        self.assertIn('aria-label="1 件事等你"', me.get('/').text)        # 导航「我的」上的数字
-        first = me.get('/notes/pings').json
-        self.assertEqual([item['id'] for item in first['items']], [note_id])
-        self.assertEqual(first['unseen'], 1)
-        self.assertEqual(me.get('/notes/pings').json['items'], [])        # 只弹一次
+        home = me.get('/').text
+        self.assertIn('aria-label="1 件事等你"', home)                    # 导航「我的」上的数字
+        self.assertIn('<title>(1) ', home)                                 # 浏览器标签上也有
+        for _ in range(2):                                                 # 没看过就一直提醒，不是只弹一次
+            alerts = me.get('/alerts').json
+            self.assertEqual(alerts['count'], 1)
+            self.assertEqual([(item['key'], item['who'], item['what']) for item in alerts['items']],
+                             [(f'note:{note_id}', '王瑶', '在手帳里提到你')])
         self.assertIn('aria-label="1 条提到你"', me.get('/notes').text)  # 「提到我」页签上的数字留到看过为止
         page = me.get('/notes/at').text
         self.assertIn('class="mref me"', page)
         self.assertNotIn('aria-label="1 件事等你"', me.get('/').text)
+        self.assertEqual(me.get('/alerts').json, {'ok': True, 'count': 0, 'items': []})
+        # 卡片上点「知道了」也算看过
+        again = notes.write(self.path, 2, '@陈默 标程我也改好了')[0]
+        ack = me.get('/alerts').json['items'][0]['ack']
+        self.assertEqual(me.post(ack, headers={'X-CSRF-Token': self.csrf(me)}).json, {'ok': True})
+        self.assertEqual(me.get('/alerts').json['count'], 0)
         # 改成只自己看：提醒一起收回
         secret = notes.write(self.path, 2, '@周然 这条先别外传')[0]
         notes.set_private(self.path, 2, secret, True)

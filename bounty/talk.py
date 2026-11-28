@@ -181,6 +181,26 @@ def inbox(db, viewer, after=0, upto=None, limit=50):
     return items
 
 
+def mentions_of(db, viewer, limit=50, unread_only=False):
+    """Posts that named this person, newest first; each stays unread until its topic is opened."""
+    rows = [dict(row) for row in db.execute(f'''SELECT p.id,p.topic_id,t.title,p.user_id,u.name user_name,p.created_at,
+            p.id>COALESCE((SELECT r.post_id FROM topic_reads r WHERE r.topic_id=t.id AND r.user_id=:me),0) unread
+        FROM post_mentions m JOIN posts p ON p.id=m.post_id JOIN topics t ON t.id=p.topic_id JOIN users u ON u.id=p.user_id
+        WHERE m.user_id=:me AND p.user_id<>:me{' AND ' + UNREAD if unread_only else ''}
+        ORDER BY p.id DESC LIMIT :limit''', dict(me=viewer, limit=limit))]
+    previews = _previews(db, [row['id'] for row in rows]) if rows else {}
+    for row in rows:
+        row['unread'] = bool(row['unread'])
+        row['preview'] = previews[row['id']]['preview']
+    return rows
+
+
+def unread_mention_count(db, viewer):
+    """Topics where someone named this person in a post they have not read yet."""
+    return db.execute(f'''SELECT COUNT(DISTINCT p.topic_id) FROM post_mentions m JOIN posts p ON p.id=m.post_id
+        JOIN topics t ON t.id=p.topic_id WHERE m.user_id=:me AND {UNREAD}''', dict(me=viewer)).fetchone()[0]
+
+
 def unread_count(db, viewer):
     return db.execute(f'''SELECT COUNT(DISTINCT t.id) FROM topics t JOIN posts p ON p.topic_id=t.id
         WHERE {UNREAD} AND {INVOLVED}''', dict(me=viewer)).fetchone()[0]
