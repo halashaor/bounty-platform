@@ -192,6 +192,11 @@ def active_count(db):
     return db.execute("SELECT COUNT(*) FROM shame_pins WHERE status='active'").fetchone()[0]
 
 
+def latest_active(db):
+    """最新一个还在柱上的编号。「大家」的小点只在有人新上柱、这台设备还没看过耻辱柱页时亮，不是有人在柱上就一直亮。"""
+    return db.execute("SELECT COALESCE(MAX(id),0) FROM shame_pins WHERE status='active'").fetchone()[0]
+
+
 def _safe_next(raw, fallback):
     if raw and raw.startswith('/') and not raw.startswith('//'):
         return raw
@@ -205,9 +210,9 @@ def install(app):
     @app.context_processor
     def shame_badge():
         if not g.get('user'):
-            return dict(shame_count=0, shame_kinds=SHAME_KINDS)
+            return dict(shame_latest=0, shame_kinds=SHAME_KINDS)
         with connect(path) as db:
-            return dict(shame_count=active_count(db), shame_kinds=SHAME_KINDS)
+            return dict(shame_latest=latest_active(db), shame_kinds=SHAME_KINDS)
 
     @page.before_request
     def signed_in():

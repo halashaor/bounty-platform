@@ -9,7 +9,7 @@
   {%- elif section == 'team' %}
   {{ tab('notes', url_for('notes.everyone'), '手帳') }}
   {% call tab('talk', url_for('talk.board'), '寄合') %}{% if talk_unread %}<i class="ndot" aria-label="{{ talk_unread }} 个话题有新帖"></i>{% endif %}{% endcall %}
-  {% call tab('shame', url_for('shame.board'), '耻辱柱') %}{% if shame_count %}<i class="ndot" aria-label="耻辱柱上有 {{ shame_count }} 人"></i>{% endif %}{% endcall %}
+  {% call tab('shame', url_for('shame.board'), '耻辱柱') %}{% if shame_latest %}<i class="ndot" data-shame-dot="{{ shame_latest }}" hidden aria-label="耻辱柱有人新上柱"></i>{% endif %}{% endcall %}
   {%- elif section == 'honors' %}
   {% call tab('honors', url_for('honors'), '成就') %}{% if mailbox %}<i class="ndot gold" aria-label="{{ mailbox }} 枚新勋章待领取"></i>{% endif %}{% endcall %}
   {% call tab('play', url_for('play'), '縁側') %}{% if play_new %}<i class="ndot gold" aria-label="有 {{ play_new }} 样新解锁"></i>{% endif %}{% endcall %}

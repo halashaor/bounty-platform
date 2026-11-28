@@ -134,6 +134,11 @@ class ShamePillarTest(unittest.TestCase):
             self.assertEqual(pin['kind'], 'rejected')
             self.assertEqual(pin['lashes'], 0)
 
+        # 「大家」的小点按最新一个上柱的人亮，没看过耻辱柱页才显示（由页面脚本按本机记录决定），不是有人在柱上就一直亮
+        home = self.clients[2].get('/').text
+        self.assertIn(f'data-shame-dot="{pin["id"]}" hidden', home)
+        self.assertIn(f'data-shame-latest="{pin["id"]}"', self.clients[2].get('/shame').text)
+
         # 第三方队友帮忙抽一鞭（JSON 接口 + 持久化计数）
         lash_res = self.clients[2].post(
             f'/shame/{pin["id"]}/lash',
@@ -153,6 +158,7 @@ class ShamePillarTest(unittest.TestCase):
         self.assertEqual(lift_res.status_code, 200)
         self.assertIn('现在柱子上干干净净', lift_res.text)
         self.assertIn('最近已拔出', lift_res.text)
+        self.assertNotIn('data-shame-dot', self.clients[2].get('/').text)
 
         # 拔出后不能再抽，事件时间线保留完整记录
         with self.assertRaises(InvalidAction):
