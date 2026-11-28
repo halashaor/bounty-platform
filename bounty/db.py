@@ -191,7 +191,6 @@ CREATE INDEX IF NOT EXISTS notes_by_task ON notes(task_id);
 CREATE TABLE IF NOT EXISTS note_mentions (
  note_id INTEGER NOT NULL REFERENCES notes(id),
  user_id INTEGER NOT NULL REFERENCES users(id),
- shown_at TEXT,
  seen_at TEXT,
  PRIMARY KEY(note_id,user_id)
 );
