@@ -151,6 +151,7 @@
     const jitter = 1 + (Math.random() - 0.5) * 0.2;
     switch (name) {
       case 'tap': tone(ac, {type: 'triangle', from: 1200, dur: 0.03, gain: 0.03}); break;
+      case 'ping': tone(ac, {from: 988, dur: 0.12, gain: 0.05}); tone(ac, {from: 1319, at: 0.11, dur: 0.22, gain: 0.05}); break;
       case 'claim': tone(ac, {type: 'triangle', from: 659, dur: 0.06}); tone(ac, {type: 'triangle', from: 880, at: 0.06, dur: 0.09}); break;
       case 'submit': tone(ac, {from: 440, to: 880, dur: 0.09, gain: 0.07}); break;
       case 'return': tone(ac, {type: 'triangle', from: 392, to: 294, dur: 0.16, gain: 0.04, filter: 1500}); break;

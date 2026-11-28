@@ -124,6 +124,11 @@
 /* 任务动态：网站自己记的，一行，比人写的轻 */
 .ent.sys{padding:6px 0}
 .ent.sys>.node{top:8px}
+.ent.talk-at>.node::before{background:var(--blue)}
+.ent.talk-at .ent-m .k{color:var(--blue-text)}
+.ent.talk-at .ent-h a{color:inherit}
+.ent.talk-at .ent-h a:hover{color:var(--blue-text)}
+.ent.talk-at.unread>.node::before{box-shadow:0 0 0 3px rgba(40,102,177,.18)}
 .ent.sys>.node::before{width:7px;height:7px;border-radius:2px;background:var(--line-2);transform:rotate(45deg)}
 .sys-l{font-size:13px;line-height:1.8;color:var(--sub);overflow-wrap:anywhere}
 .sys-l time{margin-right:8px;font:600 12px var(--num);color:var(--faint)}
@@ -220,7 +225,7 @@ button.tick:active{transform:scale(.85)}
 .quiet{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:0 4px;font-size:13px;color:var(--faint)}
 .quiet a{display:inline-flex;align-items:center;gap:6px;color:var(--sub);font-weight:700}
 .quiet .ava{width:22px;height:22px;font-size:10px}
-.at-list{padding-top:10px}
+.at-list{grid-area:auto;padding-top:10px}
 
 /* ---------- 任务页里的「进展」 ---------- */
 .tprog{padding:22px 26px 10px}
@@ -231,7 +236,7 @@ button.tick:active{transform:scale(.85)}
 
 
 /* ---------- 有人 @ 你：右上角弹一张卡，菜单上的「手帳」挂红点 ---------- */
-.pings{position:fixed;top:calc(var(--top) + 14px);right:max(20px,calc((100vw - var(--wrap)) / 2 + var(--gutter)));z-index:60;display:grid;gap:10px;width:360px;pointer-events:none}
+.pings{position:fixed;bottom:24px;right:max(20px,calc((100vw - var(--wrap)) / 2 + var(--gutter)));z-index:60;display:grid;gap:10px;width:360px;pointer-events:none}
 .ping{position:relative;display:grid;grid-template-columns:44px minmax(0,1fr);gap:14px;padding:16px 18px 16px 16px;border-radius:20px;background:var(--paper);box-shadow:0 0 0 1px rgba(27,29,42,.06),0 24px 48px -16px rgba(27,29,42,.4);overflow:hidden;pointer-events:auto}
 .ping-ava{position:relative;width:44px;height:44px}
 .ping-ava .ava{width:44px;height:44px;font-size:17px}
@@ -243,22 +248,26 @@ button.tick:active{transform:scale(.85)}
 .ping-m time{margin-left:auto;font:600 11.5px var(--num);color:var(--faint)}
 .ping-h{margin-top:3px;font-size:14.5px;font-weight:700;line-height:1.6;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .ping-a{display:flex;gap:4px;margin-top:10px}
-.ping-bar{position:absolute;left:0;bottom:0;width:100%;height:2px;background:var(--blue);transform-origin:left center;opacity:.7}
-.ping{animation:ping-in 560ms var(--pop) both}
-.ping-ava .ava{animation:ping-pop 480ms var(--pop) 140ms both}
-.ping-ava i{animation:ping-at 460ms var(--pop) 320ms both}
-.ping-ava::after{animation:ping-ring 900ms var(--arrive) 300ms forwards}
-.ping-b>*{animation:ping-rise 420ms var(--arrive) both}
+/* 提醒卡点过才收；第一次出现带入场动画，之后换页面就静静地留在原处 */
+.ping.new{animation:ping-in 560ms var(--pop) both}
+.ping.new .ping-ava .ava{animation:ping-pop 480ms var(--pop) 140ms both}
+.ping.new .ping-ava i{animation:ping-at 460ms var(--pop) 320ms both}
+.ping.new .ping-ava::after{animation:ping-ring 900ms var(--arrive) 300ms 2 forwards}
+.ping.new .ping-b>*{animation:ping-rise 420ms var(--arrive) both}
+.ping::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:4px;border-radius:0 4px 4px 0;background:var(--k)}
+.ping{--k:var(--blue)}.ping[data-kind=review]{--k:var(--green)}.ping[data-kind=extend]{--k:#F0A400}.ping[data-kind=return]{--k:var(--red)}
+.ping-ava i{background:var(--k)}.ping-ava::after{box-shadow:0 0 0 2px var(--k)}
+.ping-s{margin-top:2px;font-size:12.5px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ping-more{justify-self:end;display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;border-radius:999px;background:var(--ink);color:#fff;font-size:13px;font-weight:800;box-shadow:0 12px 24px -12px rgba(27,29,42,.5);pointer-events:auto}
+.ping-more b{font-family:var(--num)}
 .ping-b>:nth-child(1){animation-delay:120ms}.ping-b>:nth-child(2){animation-delay:180ms}.ping-b>:nth-child(3){animation-delay:240ms}
-.ping-bar{animation:ping-count 10s linear 600ms forwards}
-.ping:hover .ping-bar,.ping:focus-within .ping-bar{animation-play-state:paused}
 .ping.out{animation:ping-out 260ms var(--press) forwards}
-@keyframes ping-in{from{opacity:0;transform:translate3d(28px,-10px,0) scale(.94)}}
+.ping.out,.ping-more.out{pointer-events:none}
+@keyframes ping-in{from{opacity:0;transform:translate3d(28px,10px,0) scale(.94)}}
 @keyframes ping-pop{from{opacity:0;transform:scale(.3)}}
 @keyframes ping-at{from{opacity:0;transform:scale(0) rotate(-120deg)}}
 @keyframes ping-ring{0%{opacity:.8;transform:scale(1)}100%{opacity:0;transform:scale(1.9)}}
 @keyframes ping-rise{from{opacity:0;transform:translateY(6px)}}
-@keyframes ping-count{to{transform:scaleX(0)}}
 .nav a b.bump,.tabbar a b.bump{animation:ping-badge 560ms var(--pop) both}
 @keyframes ping-badge{0%{transform:scale(0)}55%{transform:scale(1.4)}100%{transform:scale(1)}}
 @keyframes ping-out{to{opacity:0;transform:translateX(24px) scale(.96)}}
@@ -308,7 +317,9 @@ button.tick:active{transform:scale(.85)}
   .stuck li .mini{grid-column:2;justify-self:start}
   .pgrid{grid-template-columns:minmax(0,1fr)}
   .tprog{padding:18px 16px 8px}
-  .pings{left:12px;right:12px;width:auto;top:calc(var(--top) + 10px)}
+  .pings{left:12px;right:12px;width:auto;bottom:calc(84px + env(safe-area-inset-bottom,0px))}
   .ping{grid-template-columns:40px minmax(0,1fr);gap:12px;padding:14px 16px 14px 14px}
   .ping-ava,.ping-ava .ava{width:40px;height:40px}
+  .ping.new{animation-name:ping-up}
 }
+@keyframes ping-up{from{opacity:0;transform:translate3d(0,18px,0) scale(.96)}}
