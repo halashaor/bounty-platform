@@ -6,7 +6,7 @@
 {% block body_class %}page-shame{% endblock %}
 {% block scripts %}{% if active %}<script src="{{ url_for('static', filename='shame.js') }}" defer></script>{% endif %}{% endblock %}
 {% block content %}
-<div class="wrap shame-page">
+<div class="wrap shame-page" data-shame-latest="{{ shame_latest }}">
   {{ tabs('team', 'shame') }}
   <header class="shame-page-head">
     <div>

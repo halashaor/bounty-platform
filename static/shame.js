@@ -193,8 +193,13 @@
       shakeMag: 0, shakeX: 0, shakeY: 0, pillarCrack: 0,
       nailProgress: 0, nailRecoil: 0, flagDropY: -116, flashAlpha: 0, dyingPulse: 0,
       whipTimer: 0, whipState: 'idle', whipT: 0, whipStyle: 0,
-      whipHitDone: false, whipPower: 1, localStrikes: 0, stampPop: null
+      whipHitDone: false, whipPower: 1, localStrikes: 0, stampPop: null,
+      autoLeft: 0, loud: false, restTime: 0
     };
+    // 开场钉柱后自动抽 AUTO_LASHES 下就停住，画面静止后不再重画；有人点了才再动。
+    // 声音只在有人点的时候响（loud），自动抽打不出声。
+    const AUTO_LASHES = 3, REST_AFTER = 1.2;
+    let onScreen = true;
 
     const current = () => items[activeIdx];
     const getTorches = () => [
@@ -975,17 +980,17 @@
           const ix = cloth.originX + 18, iy = cloth.originY + cloth.flagH * 0.48;
           spawnNailImpact(ix, iy);
           applyClothImpulse(ix + 35, 0.72, 1);
-          sfxNailSlam();
+          if (state.loud) sfxNailSlam();
           state.phase = 'whipping'; state.phaseTime = 0; state.whipTimer = 0.48;
         }
       } else if (state.phase === 'whipping') {
         stepCloth(dt, t, true);
         if (state.whipState === 'idle') {
           state.whipTimer -= dt;
-          if (state.whipTimer <= 0) triggerWhip(1);
+          if (state.whipTimer <= 0 && state.autoLeft > 0) { state.autoLeft -= 1; state.loud = false; triggerWhip(1); }
         } else if (state.whipState === 'windup') {
           state.whipT += dt / 0.30;
-          if (state.whipT >= 1) { state.whipState = 'strike'; state.whipT = 0; sfxWhipWhoosh(); }
+          if (state.whipT >= 1) { state.whipState = 'strike'; state.whipT = 0; if (state.loud) sfxWhipWhoosh(); }
         } else if (state.whipState === 'strike') {
           state.whipT += dt / 0.22;
           if (!state.whipHitDone && state.whipT >= 0.62) {
@@ -995,7 +1000,7 @@
             const pwr = state.whipPower;
             applyClothImpulse(target.tx, pwr, target.arc);
             spawnWhipImpact(target.tx, target.ty, pwr);
-            sfxWhipCrack(pwr);
+            if (state.loud) sfxWhipCrack(pwr);
             state.shakeMag = Math.max(state.shakeMag, 3.3 * pwr);
             state.flashAlpha = Math.max(state.flashAlpha, 0.08 * pwr);
             state.dyingPulse = Math.max(state.dyingPulse, 0.62 * pwr);
@@ -1038,7 +1043,7 @@
       cloth.originY = canvasH * 0.25;
       spirits.forEach(s => { s.x = s.rx * canvasW; s.y = s.ry * canvasH; });
       skulls.forEach(k => { k.x = k.rx * canvasW; k.y = k.ry * canvasH; });
-      if (!motionEnabled()) render();
+      if (!rafId) render();
     }
 
     function syncUI() {
@@ -1066,6 +1071,7 @@
       state.stampPop = null; state.shakeMag = 0; state.flashAlpha = 0; state.dyingPulse = 0;
       state.hitstopLeft = 0; state.nailRecoil = 0;
       state.whipState = 'idle'; state.whipT = 0; state.whipTimer = 0.24;
+      state.autoLeft = skipIntro ? 0 : AUTO_LASHES; state.loud = false; state.restTime = 0;
       resetCloth();
       if (skipIntro || !motionEnabled()) {
         state.phase = 'whipping'; state.phaseTime = 0;
@@ -1099,7 +1105,16 @@
       persistLash();
       if (!motionEnabled()) return;
       if (state.phase !== 'whipping') startSequence(true);
+      state.loud = true;
       triggerWhip(1.22);
+      wake();
+    }
+
+    // 有人点了：重新开始画（开场动画也算有人点，有声音）
+    function replay() {
+      startSequence(false);
+      state.loud = true;
+      wake();
     }
 
     tabs.forEach(btn => {
@@ -1108,25 +1123,30 @@
         if (idx === activeIdx || !items[idx]) return;
         activeIdx = idx;
         syncUI();
-        startSequence(false);
+        replay();
       });
     });
 
     root.querySelector('[data-shame-whip]')?.addEventListener('click', manualLash);
     wrap.addEventListener('click', manualLash);
-    root.querySelector('[data-shame-replay]')?.addEventListener('click', () => startSequence(false));
+    root.querySelector('[data-shame-replay]')?.addEventListener('click', replay);
+
+    // 抽完、火星和震动都散了，算停住
+    const settled = () => state.phase === 'whipping' && state.whipState === 'idle' && state.autoLeft <= 0 &&
+      !particles.length && !rings.length && !whipTrail.length && !state.stampPop && state.shakeMag <= 0.1;
 
     function tick(ts) {
       rafId = 0;
-      if (document.hidden || !motionEnabled()) {
+      if (document.hidden || !motionEnabled() || !onScreen) {
         render();
         return;
       }
       const dt = Math.min(0.033, (ts - lastTs) / 1000);
       lastTs = ts;
       update(dt);
+      state.restTime = settled() ? state.restTime + dt : 0;
       render();
-      rafId = requestAnimationFrame(tick);
+      if (state.restTime < REST_AFTER) rafId = requestAnimationFrame(tick);
     }
 
     function ensureRunning() {
@@ -1135,10 +1155,23 @@
         startSequence(true);
         return;
       }
-      if (!rafId && !document.hidden) {
+      if (!rafId && !document.hidden && onScreen && state.restTime < REST_AFTER) {
         lastTs = performance.now();
         rafId = requestAnimationFrame(tick);
       }
+    }
+
+    function wake() {
+      state.restTime = 0;
+      ensureRunning();
+    }
+
+    // 滚出屏幕就不画，滚回来接着画
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(entries => {
+        onScreen = entries[entries.length - 1].isIntersecting;
+        ensureRunning();
+      }).observe(wrap);
     }
 
     document.addEventListener('visibilitychange', ensureRunning);

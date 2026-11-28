@@ -61,6 +61,7 @@ img,svg{max-width:100%}
 /* 只有等你处理的事显示数字，其余只亮一个小点 */
 .ndot{position:relative;display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--red);box-shadow:0 0 0 2px var(--paper)}
 .ndot.gold{background:#F0A400}
+.ndot[hidden]{display:none}
 .nav .ndot{align-self:flex-start;margin:7px 0 0 -3px}
 .timeseg .dot-n{font:700 11px/18px var(--num);min-width:18px;padding:0 5px;text-align:center;border-radius:9px;background:var(--red);color:#fff}
 .timeseg .ndot{margin-left:-2px}

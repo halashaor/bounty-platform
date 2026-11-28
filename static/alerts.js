@@ -63,10 +63,19 @@
   const remember = n => { try { sessionStorage.setItem('yui-alerts-last', String(n)); } catch (error) { /* 同上 */ } };
   setCount(count, count > last);
   remember(count);
-  for (const dot of document.querySelectorAll('.ndot[data-dot]')) {
-    if (!dots.has(dot.dataset.dot)) dot.classList.add('fresh');
+  // 耻辱柱的小点：有人新上柱、这台设备还没打开过耻辱柱页才亮
+  let pinSeen = 0;
+  try { pinSeen = Number(localStorage.getItem('yui-shame-seen') || 0); } catch (error) { /* 同上 */ }
+  const pinLatest = Number(document.querySelector('[data-shame-latest]')?.dataset.shameLatest || 0);
+  if (pinLatest > pinSeen) {
+    pinSeen = pinLatest;
+    try { localStorage.setItem('yui-shame-seen', String(pinSeen)); } catch (error) { /* 同上 */ }
   }
-  for (const dot of document.querySelectorAll('.ndot[data-dot]')) dots.add(dot.dataset.dot);
+  for (const dot of document.querySelectorAll('.ndot[data-shame-dot]')) dot.hidden = Number(dot.dataset.shameDot) <= pinSeen;
+  for (const dot of document.querySelectorAll('.ndot[data-dot]:not([hidden])')) {
+    if (!dots.has(dot.dataset.dot)) dot.classList.add('fresh');
+    dots.add(dot.dataset.dot);
+  }
 
   /* ---------- 卡片 ---------- */
   const post = url => fetch(url, {method: 'POST', credentials: 'same-origin',

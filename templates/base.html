@@ -51,7 +51,7 @@
       <nav class="nav" aria-label="主导航">
         <a href="{{ url_for('index') }}" {% if section == 'discover' %}aria-current="page"{% endif %}>发现</a>
         <a href="{{ url_for('mine') }}" data-alerts {% if section == 'mine' %}aria-current="page"{% endif %}>我的{% if alerts.total %}<b aria-label="{{ alerts.total }} 件事等你">{{ alerts.total }}</b>{% endif %}</a>
-        <a href="{{ url_for('notes.everyone') }}" {% if section == 'team' %}aria-current="page"{% endif %}>大家{% if talk_unread or shame_count %}<i class="ndot" data-dot="team:{{ talk_unread }}:{{ shame_count }}" aria-label="寄合有新帖或耻辱柱有人"></i>{% endif %}</a>
+        <a href="{{ url_for('notes.everyone') }}" {% if section == 'team' %}aria-current="page"{% endif %}>大家{% if talk_unread or shame_latest %}<i class="ndot" data-dot="team:{{ talk_unread }}:{{ shame_latest }}"{% if not talk_unread %} data-shame-dot="{{ shame_latest }}" hidden{% endif %} aria-label="寄合有新帖或耻辱柱有人新上柱"></i>{% endif %}</a>
         <a href="{{ url_for('honors') }}" {% if section == 'honors' %}aria-current="page"{% endif %}>成就{% if mailbox or play_new %}<i class="ndot gold" data-dot="honors:{{ mailbox }}:{{ play_new }}" aria-label="有新勋章或新解锁"></i>{% endif %}</a>
       </nav>
       <div class="top-right">
@@ -74,7 +74,7 @@
     <a href="{{ url_for('index') }}" {% if section == 'discover' %}aria-current="page"{% endif %}>{{ icon('compass') }}发现</a>
     <a href="{{ url_for('mine') }}" data-alerts {% if section == 'mine' %}aria-current="page"{% endif %}>{{ icon('list') }}我的{% if alerts.total %}<b>{{ alerts.total }}</b>{% endif %}</a>
     <a class="plus-wrap" href="{{ url_for('new_task') }}" aria-label="发布任务"><span class="plus">{{ icon('plus') }}</span></a>
-    <a href="{{ url_for('notes.everyone') }}" {% if section == 'team' %}aria-current="page"{% endif %}>{{ icon('people') }}大家{% if talk_unread or shame_count %}<i class="ndot" data-dot="team:{{ talk_unread }}:{{ shame_count }}" aria-label="寄合有新帖或耻辱柱有人"></i>{% endif %}</a>
+    <a href="{{ url_for('notes.everyone') }}" {% if section == 'team' %}aria-current="page"{% endif %}>{{ icon('people') }}大家{% if talk_unread or shame_latest %}<i class="ndot" data-dot="team:{{ talk_unread }}:{{ shame_latest }}"{% if not talk_unread %} data-shame-dot="{{ shame_latest }}" hidden{% endif %} aria-label="寄合有新帖或耻辱柱有人新上柱"></i>{% endif %}</a>
     <a href="{{ url_for('honors') }}" {% if section == 'honors' %}aria-current="page"{% endif %}>{{ icon('medal') }}成就{% if mailbox or play_new %}<i class="ndot gold" data-dot="honors:{{ mailbox }}:{{ play_new }}" aria-label="有新勋章或新解锁"></i>{% endif %}</a>
   </nav>
   {% endif %}
